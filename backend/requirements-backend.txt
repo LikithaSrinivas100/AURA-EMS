@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+pandas
+numpy
+joblib
+python-dotenv
+xgboost
+lightgbm
+scikit-learn

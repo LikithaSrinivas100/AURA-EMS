@@ -1,0 +1,8 @@
+{
+  "model_name": "LightGBM_Ensemble",
+  "version": "v1.0.0",
+  "rmse": 11.85,
+  "mape": 3.42,
+  "mae": 8.76,
+  "artifact_path": "models/lightgbm_demand_v1.pkl"
+}
