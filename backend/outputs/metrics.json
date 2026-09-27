@@ -1,8 +1,43 @@
 {
-  "model_name": "LightGBM_Ensemble",
-  "version": "v1.0.0",
-  "rmse": 11.85,
-  "mape": 3.42,
-  "mae": 8.76,
-  "artifact_path": "models/lightgbm_demand_v1.pkl"
+  "selection_metric": "lowest test RMSE",
+  "winner": "XGBoost",
+  "target_column": "Total_Campus_Demand_kW",
+  "feature_columns": [
+    "Hour",
+    "DayOfWeek",
+    "Month",
+    "Temperature_C",
+    "Is_Weekend",
+    "Is_Vacation",
+    "Is_Exam_Cycle",
+    "Load_Lag_1hr",
+    "Load_Lag_2hr",
+    "Load_Lag_24hr",
+    "Load_Rolling_Mean_4hr",
+    "Load_Rolling_Std_4hr"
+  ],
+  "train_rows": 27956,
+  "test_rows": 6989,
+  "data_start": "2025-09-02 00:00:00",
+  "data_end": "2026-09-01 00:00:00",
+  "metrics": {
+    "Baseline": {
+      "rmse": 79.43733103020176,
+      "mae": 36.54295765765489,
+      "mape_percent": 34.00267748589758,
+      "mape_zero_actual_rows_excluded": 0
+    },
+    "XGBoost": {
+      "rmse": 13.522272930008686,
+      "mae": 9.088798669024786,
+      "mape_percent": 9.592434666100418,
+      "mape_zero_actual_rows_excluded": 0
+    },
+    "LightGBM": {
+      "rmse": 16.678489587738436,
+      "mae": 9.864149888272928,
+      "mape_percent": 9.881475238129418,
+      "mape_zero_actual_rows_excluded": 0
+    }
+  }
 }

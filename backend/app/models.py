@@ -30,6 +30,8 @@ class ModelRegistry(Base):
     mape = Column(Float, nullable=True)
     mae = Column(Float, nullable=True)
     artifact_path = Column(String, nullable=True)
+    train_rows = Column(Integer, nullable=True, default=0)
+    test_rows = Column(Integer, nullable=True, default=0)
     is_active = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now())
 

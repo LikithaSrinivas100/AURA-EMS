@@ -135,13 +135,26 @@ def main():
 
         # Update model registry
         db.query(ModelRegistry).update({ModelRegistry.is_active: False})
+
+        winner = metrics_data.get("winner", metrics_data.get("model_name", "UnknownModel"))
+        all_metrics = metrics_data.get("metrics", {})
+        winner_metrics = all_metrics.get(winner, {}) if isinstance(all_metrics, dict) else {}
+
+        rmse = winner_metrics.get("rmse", metrics_data.get("rmse"))
+        mae = winner_metrics.get("mae", metrics_data.get("mae"))
+        mape = winner_metrics.get("mape_percent", metrics_data.get("mape"))
+        train_rows = metrics_data.get("train_rows", 0)
+        test_rows = metrics_data.get("test_rows", 0)
+
         active_model = ModelRegistry(
-            model_name=metrics_data.get("model_name", "UnknownModel"),
-            version=metrics_data.get("version", "v1.0.0"),
-            rmse=metrics_data.get("rmse"),
-            mape=metrics_data.get("mape"),
-            mae=metrics_data.get("mae"),
-            artifact_path=metrics_data.get("artifact_path"),
+            model_name=winner,
+            version="v1.0",
+            rmse=rmse,
+            mape=mape,
+            mae=mae,
+            artifact_path="models/aura_ems_best.pkl",
+            train_rows=train_rows,
+            test_rows=test_rows,
             is_active=True,
         )
         db.add(active_model)
