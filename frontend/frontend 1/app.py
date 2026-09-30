@@ -32,8 +32,8 @@ st.caption("Predictive demand forecasting to reduce peak-load risk and energy wa
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.header("Filters")
-    default_start = datetime(2024, 1, 1)
-    default_end = default_start + timedelta(hours=48)
+    default_start = datetime(2025, 9, 2)
+    default_end = datetime(2026, 9, 1)
     start_date = st.date_input("Start date", value=default_start.date())
     start_time = st.time_input("Start time", value=default_start.time())
     end_date = st.date_input("End date", value=default_end.date())
@@ -53,11 +53,7 @@ end_dt = datetime.combine(end_date, end_time).isoformat()
 health, health_error = api_client.get_health()
 
 if health_error:
-    st.error(f"\U0001F534 {health_error}")
-elif health and health.get("status") == "ok":
-    st.success(f"\U0001F7E2 Backend healthy — {health.get('service', 'aura-ems-backend')}")
-else:
-    st.warning("\U0001F7E1 Backend status unknown.")
+    st.error(f"🔴 {health_error}")
 
 st.divider()
 
