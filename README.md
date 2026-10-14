@@ -218,10 +218,9 @@ FastAPI backend and Streamlit dashboard as separate web services.
    select the branch to deploy. Review and create both services.
 3. After the `aura-ems-api` service is live, confirm its `/health` endpoint
    returns `{"status":"ok", ...}`.
-4. In the `aura-ems-dashboard` service settings, verify `API_BASE_URL` points
-   to the backend's public URL (for example,
-   `https://aura-ems-api.onrender.com`). Update it if Render assigned a
-   different URL, then redeploy the dashboard.
+4. The Blueprint connects `API_BASE_URL` to the backend's Render hostname.
+   Confirm the value in the `aura-ems-dashboard` service settings if the
+   backend service name or URL has been customized.
 5. Open the dashboard service's public URL and check the health indicator,
    metrics, forecast chart, peak-risk windows, and ahead forecast.
 
