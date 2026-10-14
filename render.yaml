@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: aura-ems-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements-backend.txt
+    startCommand: python scripts/seed_db.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+
+  - type: web
+    name: aura-ems-dashboard
+    runtime: python
+    plan: free
+    rootDir: frontend
+    buildCommand: pip install -r requirements-frontend.txt
+    startCommand: streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true
+    envVars:
+      - key: API_BASE_URL
+        value: https://aura-ems-api.onrender.com
