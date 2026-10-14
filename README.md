@@ -207,6 +207,33 @@ Then open a Pull Request into `main` on GitHub.
 
 ---
 
-## 11. Disclaimer
+## 11. Deploy on Render
+
+The repository includes a Render Blueprint (`render.yaml`) for deploying the
+FastAPI backend and Streamlit dashboard as separate web services.
+
+1. Push the project to GitHub, including the ML models, datasets, calendar, and
+   output files used by the backend.
+2. In Render, choose **New + → Blueprint**, connect this GitHub repository, and
+   select the branch to deploy. Review and create both services.
+3. After the `aura-ems-api` service is live, confirm its `/health` endpoint
+   returns `{"status":"ok", ...}`.
+4. In the `aura-ems-dashboard` service settings, verify `API_BASE_URL` points
+   to the backend's public URL (for example,
+   `https://aura-ems-api.onrender.com`). Update it if Render assigned a
+   different URL, then redeploy the dashboard.
+5. Open the dashboard service's public URL and check the health indicator,
+   metrics, forecast chart, peak-risk windows, and ahead forecast.
+
+The backend seed script runs at each service start. Render's free services can
+sleep when idle, so the first request after inactivity may take longer. The
+backend uses its local SQLite database, which is not durable across replacement
+of a free instance; the seed script repopulates the demo forecast data on
+startup. Use a managed database and persistent storage before relying on
+production data.
+
+---
+
+## 12. Disclaimer
 
 This is an academic capstone project built for demonstration purposes. It is a decision-support tool and is **not** a replacement for official BESCOM billing systems.
