@@ -1,99 +1,174 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
+
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 try:
     from app.db import get_db
     from app.models import Forecast
-    from app.schemas import ForecastItem, ForecastsResponse, PeakItem, PeaksResponse
-    from app.services.forecaster import forecast_ahead
+    from app.schemas import (
+        CarbonImpactResponse,
+        DataRangeResponse,
+        EDU_TARIFF_INR_PER_KWH,
+        ForecastItem,
+        ForecastsResponse,
+        INDIA_GRID_EF_KG_PER_KWH,
+        PeakItem,
+        PeaksResponse,
+        PredictRequest,
+        PredictResponse,
+    )
+    from app.services.forecaster import forecast_ahead, predict_one
 except ImportError:
-    from services.forecaster import forecast_ahead
     from db import get_db
     from models import Forecast
-    from schemas import ForecastItem, ForecastsResponse, PeakItem, PeaksResponse
+    from schemas import (
+        CarbonImpactResponse,
+        DataRangeResponse,
+        EDU_TARIFF_INR_PER_KWH,
+        ForecastItem,
+        ForecastsResponse,
+        INDIA_GRID_EF_KG_PER_KWH,
+        PeakItem,
+        PeaksResponse,
+        PredictRequest,
+        PredictResponse,
+    )
+    from services.forecaster import forecast_ahead, predict_one
 
 router = APIRouter()
+_INTERVAL_HOURS = 0.25
+_TREE_KG_CO2_PER_YEAR = 21.0
+
+
+def _parse_ts(value: Optional[str]):
+    if not value:
+        return None
+    try:
+        return pd.to_datetime(value).to_pydatetime()
+    except Exception:
+        return None
+
+
+@router.get("/forecasts/range", response_model=DataRangeResponse)
+def get_data_range(db: Session = Depends(get_db)):
+    mn, mx, n = db.query(func.min(Forecast.ts), func.max(Forecast.ts), func.count(Forecast.id)).one()
+    if not mn or not mx:
+        raise HTTPException(status_code=404, detail="No forecast rows seeded")
+    return DataRangeResponse(min_ts=mn, max_ts=mx, count=int(n))
+
 
 @router.get("/forecasts/ahead")
-def get_forecast_ahead(hours: int = Query(24, ge=1, le=168, description="Forecast horizon: 24 = next day, 168 = next 7 days")):
-    """Recursive forecast for total, academic and hostel demand using live weather and the academic calendar."""
-    return forecast_ahead(hours)
+def get_forecast_ahead(
+    hours: int = Query(24, ge=1, le=168),
+    as_of: Optional[str] = Query(None, description="Optional anchor timestamp; forecast starts after this row"),
+):
+    try:
+        return forecast_ahead(hours, as_of or "")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/forecasts/carbon", response_model=CarbonImpactResponse)
+def get_carbon_impact(
+    hours: int = Query(24, ge=1, le=168),
+    as_of: Optional[str] = Query(None),
+):
+    try:
+        payload = forecast_ahead(hours, as_of or "")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    items = payload.get("items") or []
+    totals = [float(i["total_kw"]) for i in items]
+    if not totals:
+        return CarbonImpactResponse(
+            hours=hours,
+            forecast_energy_kwh=0.0,
+            baseline_peak_kw=0.0,
+            shaved_peak_kw=0.0,
+            energy_avoided_kwh=0.0,
+            co2_avoided_kg=0.0,
+            cost_saved_inr=0.0,
+            trees_equivalent=0.0,
+            notes="No forecast rows available.",
+        )
+    forecast_energy_kwh = sum(totals) * _INTERVAL_HOURS
+    baseline_peak = max(totals)
+    p75 = float(np.percentile(totals, 75))
+    shaved = [min(v, p75) if i.get("risk_level") == "HIGH" else v for i, v in zip(items, totals)]
+    energy_avoided = max(0.0, (sum(totals) - sum(shaved)) * _INTERVAL_HOURS)
+    co2 = energy_avoided * INDIA_GRID_EF_KG_PER_KWH
+    cost = energy_avoided * EDU_TARIFF_INR_PER_KWH
+    return CarbonImpactResponse(
+        hours=hours,
+        forecast_energy_kwh=round(forecast_energy_kwh, 2),
+        baseline_peak_kw=round(baseline_peak, 2),
+        shaved_peak_kw=round(max(shaved), 2),
+        energy_avoided_kwh=round(energy_avoided, 2),
+        co2_avoided_kg=round(co2, 2),
+        cost_saved_inr=round(cost, 2),
+        trees_equivalent=round(co2 / _TREE_KG_CO2_PER_YEAR, 2),
+        notes=(
+            f"Uses Indian grid EF {INDIA_GRID_EF_KG_PER_KWH} kg CO2/kWh and "
+            f"educational tariff ₹{EDU_TARIFF_INR_PER_KWH}/kWh. "
+            "HIGH-risk intervals capped at P75 demand."
+        ),
+    )
+
+
+@router.post("/predict", response_model=PredictResponse)
+def post_predict(body: PredictRequest, zone: str = Query("total")):
+    try:
+        return PredictResponse(pred_kw=round(predict_one(body.features, zone=zone), 2), model=zone)
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/forecasts/peaks", response_model=PeaksResponse)
-@router.get("/peaks", response_model=PeaksResponse)
 def get_peaks(
-    limit: int = Query(10, ge=1, description="Number of peak rows to return"),
-    db: Session = Depends(get_db)
+    limit: int = Query(10, ge=1),
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
 ):
-    all_values = [
-        val[0] for val in db.query(Forecast.best_pred_kw)
-        .filter(Forecast.best_pred_kw.isnot(None))
-        .all()
-    ]
+    start_dt, end_dt = _parse_ts(start), _parse_ts(end)
+    base = db.query(Forecast).filter(Forecast.best_pred_kw.isnot(None))
+    if start_dt:
+        base = base.filter(Forecast.ts >= start_dt)
+    if end_dt:
+        base = base.filter(Forecast.ts <= end_dt)
 
+    all_values = [v[0] for v in base.with_entities(Forecast.best_pred_kw).all()]
     if not all_values:
         return PeaksResponse(items=[])
 
-    p90 = float(np.percentile(all_values, 90))
-    p75 = float(np.percentile(all_values, 75))
+    p90, p75 = float(np.percentile(all_values, 90)), float(np.percentile(all_values, 75))
 
-    def calculate_risk(pred_val: float) -> str:
-        if pred_val >= p90:
+    def risk(v: float) -> str:
+        if v >= p90:
             return "HIGH"
-        elif pred_val >= p75:
+        if v >= p75:
             return "MEDIUM"
         return "LOW"
 
-    top_rows = (
-        db.query(Forecast)
-        .filter(Forecast.best_pred_kw.isnot(None))
-        .order_by(Forecast.best_pred_kw.desc())
-        .limit(limit)
-        .all()
+    top_rows = base.order_by(Forecast.best_pred_kw.desc()).limit(limit).all()
+    return PeaksResponse(
+        items=[PeakItem(ts=r.ts, best_pred_kw=r.best_pred_kw, risk_level=risk(r.best_pred_kw)) for r in top_rows]
     )
-
-    items = [
-        PeakItem(
-            ts=row.ts,
-            best_pred_kw=row.best_pred_kw,
-            risk_level=calculate_risk(row.best_pred_kw)
-        )
-        for row in top_rows
-    ]
-
-    return PeaksResponse(items=items)
 
 
 @router.get("/forecasts", response_model=ForecastsResponse)
-@router.get("", response_model=ForecastsResponse)
 def get_forecasts(
-    start: Optional[str] = Query(None, description="Start timestamp filter"),
-    end: Optional[str] = Query(None, description="End timestamp filter"),
-    db: Session = Depends(get_db)
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
 ):
     query = db.query(Forecast)
-
-    start_dt = None
-    end_dt = None
-
-    if start:
-        try:
-            start_dt = pd.to_datetime(start).to_pydatetime()
-        except Exception:
-            start_dt = None
-
-    if end:
-        try:
-            end_dt = pd.to_datetime(end).to_pydatetime()
-        except Exception:
-            end_dt = None
-
+    start_dt, end_dt = _parse_ts(start), _parse_ts(end)
     if start_dt and end_dt:
         query = query.filter(Forecast.ts >= start_dt, Forecast.ts <= end_dt)
     elif start_dt:
@@ -101,14 +176,11 @@ def get_forecasts(
     elif end_dt:
         query = query.filter(Forecast.ts <= end_dt)
     else:
-        # If no start/end provided, return last 48 hours of data
         latest_ts = db.query(func.max(Forecast.ts)).scalar()
         if latest_ts:
-            cutoff = latest_ts - timedelta(hours=48)
-            query = query.filter(Forecast.ts >= cutoff)
+            query = query.filter(Forecast.ts >= latest_ts - timedelta(hours=48))
 
     records = query.order_by(Forecast.ts.asc()).all()
-
     items = [
         ForecastItem(
             ts=row.ts,
@@ -119,5 +191,4 @@ def get_forecasts(
         )
         for row in records
     ]
-
     return ForecastsResponse(count=len(items), items=items)

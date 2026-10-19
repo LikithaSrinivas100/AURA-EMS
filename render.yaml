@@ -23,7 +23,4 @@ services:
       --server.headless true
     envVars:
       - key: API_BASE_URL
-        fromService:
-          name: aura-ems-backend
-          type: web
-          property: host
+        value: https://aura-ems-backend.onrender.com

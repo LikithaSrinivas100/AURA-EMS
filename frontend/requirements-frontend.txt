@@ -1,5 +1,5 @@
-streamlit
-requests
-pandas
-plotly
-python-dateutil
+streamlit==1.56.0
+requests>=2.31
+pandas>=2.2,<3.1
+plotly>=5.18,<7
+python-dateutil>=2.9

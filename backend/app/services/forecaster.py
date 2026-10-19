@@ -56,17 +56,33 @@ def _calendar_flags(calendar: pd.DataFrame, ts: pd.Timestamp) -> tuple[int, int]
     return int((events == "vacation").any()), int((events == "exam").any())
 
 
-@lru_cache(maxsize=4)
-def forecast_ahead(hours: int) -> dict:
+def predict_one(features: dict, zone: str = "total") -> float:
+    models, feature_columns, _, _ = _assets()
+    if zone not in models:
+        raise KeyError(f"Unknown zone: {zone}")
+    missing = [c for c in feature_columns if c not in features]
+    if missing:
+        raise ValueError(f"Missing features: {missing}")
+    x = pd.DataFrame([[float(features[c]) for c in feature_columns]], columns=feature_columns)
+    return max(0.0, float(models[zone].predict(x)[0]))
+
+
+@lru_cache(maxsize=16)
+def forecast_ahead(hours: int, as_of: str = "") -> dict:
     models, feature_columns, history, calendar = _assets()
-    last_ts = history.index[-1]
+    hist = history
+    if as_of:
+        hist = history.loc[: pd.Timestamp(as_of)]
+        if len(hist) < 96:
+            raise ValueError("as_of needs at least 24h of prior history (96 intervals)")
+    last_ts = hist.index[-1]
     future = pd.date_range(last_ts + pd.Timedelta(minutes=15), periods=hours * 4, freq="15min")
     live_temps, weather_source = _fetch_temperature(future[0], future[-1])
 
-    temps = history["Temperature_C"].to_dict()
+    temps = hist["Temperature_C"].to_dict()
     context = []
     for ts in future:
-        fallback = temps.get(ts - pd.Timedelta(hours=24), history["Temperature_C"].iloc[-1])
+        fallback = temps.get(ts - pd.Timedelta(hours=24), hist["Temperature_C"].iloc[-1])
         temp = float(live_temps.get(ts, fallback)) if live_temps is not None else float(fallback)
         temps[ts] = temp
         vacation, exam = _calendar_flags(calendar, ts)
@@ -82,7 +98,7 @@ def forecast_ahead(hours: int) -> dict:
 
     preds = {}
     for zone, (column, _) in ZONES.items():
-        demand = history[column].iloc[-96:].tolist()
+        demand = hist[column].iloc[-96:].tolist()
         for base in context:
             recent = np.array(demand[-16:])
             row = dict(
@@ -97,7 +113,7 @@ def forecast_ahead(hours: int) -> dict:
             demand.append(max(0.0, float(models[zone].predict(x)[0])))
         preds[zone] = demand[96:]
 
-    p90, p75 = history["Total_Campus_Demand_kW"].quantile([0.9, 0.75])
+    p90, p75 = hist["Total_Campus_Demand_kW"].quantile([0.9, 0.75])
     items = []
     for i, ts in enumerate(future):
         total = preds["total"][i]
