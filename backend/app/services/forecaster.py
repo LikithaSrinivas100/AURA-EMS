@@ -1,0 +1,120 @@
+"""Recursive multi-step demand forecasting for the whole campus and per zone."""
+
+import json
+import urllib.request
+from functools import lru_cache
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+ML_DIR = BACKEND_DIR.parent / "ML Implementation"
+CAMPUS_LAT, CAMPUS_LON = 12.7286, 77.7027  # Alliance University, Anekal, Bengaluru
+ZONES = {
+    "total": ("Total_Campus_Demand_kW", "aura_ems_best.pkl"),
+    "academic": ("Academic_Demand_kW", "aura_ems_academic.pkl"),
+    "hostel": ("Hostel_Demand_kW", "aura_ems_hostel.pkl"),
+}
+
+
+def _ml_path(sub: str, name: str) -> Path:
+    preferred = ML_DIR / sub / name
+    return preferred if preferred.exists() else BACKEND_DIR / sub / name
+
+
+@lru_cache(maxsize=1)
+def _assets():
+    models = {zone: joblib.load(_ml_path("models", file)) for zone, (_, file) in ZONES.items()}
+    feature_columns = json.loads(_ml_path("outputs", "metrics.json").read_text())["feature_columns"]
+    history = pd.read_csv(_ml_path("data", "alliance_campus_energy_master.csv"), index_col=0, parse_dates=True)
+    calendar = pd.read_csv(_ml_path("data", "academic_calendar.csv"), parse_dates=["start_date", "end_date"])
+    return models, feature_columns, history, calendar
+
+
+def _fetch_temperature(start: pd.Timestamp, end: pd.Timestamp):
+    params = (
+        f"latitude={CAMPUS_LAT}&longitude={CAMPUS_LON}&hourly=temperature_2m&timezone=Asia%2FKolkata"
+        f"&start_date={start:%Y-%m-%d}&end_date={end:%Y-%m-%d}"
+    )
+    for host in ("api.open-meteo.com/v1/forecast", "archive-api.open-meteo.com/v1/archive"):
+        try:
+            with urllib.request.urlopen(f"https://{host}?{params}", timeout=10) as resp:
+                hourly = json.load(resp)["hourly"]
+            series = pd.Series(hourly["temperature_2m"], index=pd.to_datetime(hourly["time"]), dtype=float).dropna()
+            if len(series):
+                return series.resample("15min").interpolate(), "Open-Meteo"
+        except Exception:
+            continue
+    return None, "previous-day fallback (weather API unreachable)"
+
+
+def _calendar_flags(calendar: pd.DataFrame, ts: pd.Timestamp) -> tuple[int, int]:
+    day = ts.normalize()
+    events = calendar.loc[(calendar.start_date <= day) & (calendar.end_date >= day), "event"]
+    return int((events == "vacation").any()), int((events == "exam").any())
+
+
+@lru_cache(maxsize=4)
+def forecast_ahead(hours: int) -> dict:
+    models, feature_columns, history, calendar = _assets()
+    last_ts = history.index[-1]
+    future = pd.date_range(last_ts + pd.Timedelta(minutes=15), periods=hours * 4, freq="15min")
+    live_temps, weather_source = _fetch_temperature(future[0], future[-1])
+
+    temps = history["Temperature_C"].to_dict()
+    context = []
+    for ts in future:
+        fallback = temps.get(ts - pd.Timedelta(hours=24), history["Temperature_C"].iloc[-1])
+        temp = float(live_temps.get(ts, fallback)) if live_temps is not None else float(fallback)
+        temps[ts] = temp
+        vacation, exam = _calendar_flags(calendar, ts)
+        context.append({
+            "Hour": ts.hour,
+            "DayOfWeek": ts.dayofweek,
+            "Month": ts.month,
+            "Temperature_C": temp,
+            "Is_Weekend": int(ts.dayofweek >= 5),
+            "Is_Vacation": vacation,
+            "Is_Exam_Cycle": exam,
+        })
+
+    preds = {}
+    for zone, (column, _) in ZONES.items():
+        demand = history[column].iloc[-96:].tolist()
+        for base in context:
+            recent = np.array(demand[-16:])
+            row = dict(
+                base,
+                Load_Lag_1hr=demand[-4],
+                Load_Lag_2hr=demand[-8],
+                Load_Lag_24hr=demand[-96],
+                Load_Rolling_Mean_4hr=recent.mean(),
+                Load_Rolling_Std_4hr=recent.std(ddof=1),
+            )
+            x = pd.DataFrame([[row[c] for c in feature_columns]], columns=feature_columns)
+            demand.append(max(0.0, float(models[zone].predict(x)[0])))
+        preds[zone] = demand[96:]
+
+    p90, p75 = history["Total_Campus_Demand_kW"].quantile([0.9, 0.75])
+    items = []
+    for i, ts in enumerate(future):
+        total = preds["total"][i]
+        items.append({
+            "ts": ts.isoformat(),
+            "total_kw": round(total, 2),
+            "academic_kw": round(preds["academic"][i], 2),
+            "hostel_kw": round(preds["hostel"][i], 2),
+            "temperature_c": round(context[i]["Temperature_C"], 1),
+            "is_vacation": context[i]["Is_Vacation"],
+            "is_exam": context[i]["Is_Exam_Cycle"],
+            "risk_level": "HIGH" if total >= p90 else "MEDIUM" if total >= p75 else "LOW",
+        })
+    return {
+        "generated_from": last_ts.isoformat(),
+        "hours": hours,
+        "weather_source": weather_source,
+        "count": len(items),
+        "items": items,
+    }

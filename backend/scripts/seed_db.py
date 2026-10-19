@@ -18,7 +18,8 @@ except ImportError:
     from db import Base, SessionLocal, engine
     from models import Forecast, ModelRegistry
 
-OUTPUTS_DIR = BASE_DIR / "outputs"
+ML_OUTPUTS_DIR = BASE_DIR.parent / "ML Implementation" / "outputs"
+OUTPUTS_DIR = ML_OUTPUTS_DIR if (ML_OUTPUTS_DIR / "metrics.json").exists() and "--mock" not in sys.argv else BASE_DIR / "outputs"
 CSV_PATH = OUTPUTS_DIR / "dashboard_inference_feed.csv"
 METRICS_PATH = OUTPUTS_DIR / "metrics.json"
 

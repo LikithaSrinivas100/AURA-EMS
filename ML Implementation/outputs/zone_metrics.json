@@ -1,0 +1,14 @@
+{
+  "academic": {
+    "rmse": 9.647757394204564,
+    "mae": 6.837063593496586,
+    "mape_percent": 22.00074352578529,
+    "mape_zero_actual_rows_excluded": 0
+  },
+  "hostel": {
+    "rmse": 7.433892989237115,
+    "mae": 5.650602633514566,
+    "mape_percent": 13.267223019590958,
+    "mape_zero_actual_rows_excluded": 0
+  }
+}

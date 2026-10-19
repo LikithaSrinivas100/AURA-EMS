@@ -10,12 +10,19 @@ try:
     from app.db import get_db
     from app.models import Forecast
     from app.schemas import ForecastItem, ForecastsResponse, PeakItem, PeaksResponse
+    from app.services.forecaster import forecast_ahead
 except ImportError:
+    from services.forecaster import forecast_ahead
     from db import get_db
     from models import Forecast
     from schemas import ForecastItem, ForecastsResponse, PeakItem, PeaksResponse
 
 router = APIRouter()
+
+@router.get("/forecasts/ahead")
+def get_forecast_ahead(hours: int = Query(24, ge=1, le=168, description="Forecast horizon: 24 = next day, 168 = next 7 days")):
+    """Recursive forecast for total, academic and hostel demand using live weather and the academic calendar."""
+    return forecast_ahead(hours)
 
 
 @router.get("/forecasts/peaks", response_model=PeaksResponse)
