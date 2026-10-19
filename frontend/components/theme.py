@@ -1,51 +1,90 @@
-"""Calculated Caliber shell — matches new_design/code.html chrome inside Streamlit."""
+"""Calculated Caliber shell — Streamlit chrome matching new_design."""
 
 import streamlit as st
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-html, body, [class*="css"], .stApp, .stMarkdown, .stText, .stMetric, button, input, label {
+
+html, body, [class*="css"], .stApp, .stMarkdown, .stText, button, input, label {
   font-family: Inter, system-ui, sans-serif !important;
   font-variant-numeric: tabular-nums;
 }
 .stApp { background: #F5F4F0 !important; color: #15181E !important; }
-header[data-testid="stHeader"] { background: transparent !important; }
-[data-testid="stSidebar"] {
-  background: #FFFFFF !important;
-  border-right: 1px solid #E7E5E0 !important;
-  min-width: 260px !important;
-}
-[data-testid="stSidebar"] > div:first-child { padding-top: 0.5rem !important; }
-.block-container {
-  padding-top: 5.5rem !important;
-  padding-bottom: 2rem !important;
-  max-width: 1100px !important;
-}
+
+/* Hide Streamlit chrome that fights our top bar */
+header[data-testid="stHeader"] { display: none !important; }
+#MainMenu, footer { visibility: hidden; }
+
+/* Fixed top bar ABOVE sidebar */
 .aura-topnav {
-  position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 999990;
-  background: #FFFFFF; border-bottom: 1px solid #E7E5E0; border-top: 3px solid #6366F1;
+  position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 1000000;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E7E5E0;
+  border-top: 3px solid #6366F1;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 1.25rem; font-family: Inter, system-ui, sans-serif;
+  padding: 0 1.25rem;
+  box-sizing: border-box;
 }
-.aura-topnav .brand { display: flex; align-items: center; gap: 0.75rem; }
+.aura-topnav .brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
 .aura-topnav .logo {
   width: 32px; height: 32px; border-radius: 8px; background: #0F766E;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 16px; font-weight: 700; flex-shrink: 0;
 }
 .aura-topnav .divider { width: 1px; height: 20px; background: #D1D5DB; flex-shrink: 0; }
-.aura-topnav .brand strong { font-size: 18px; font-weight: 600; color: #15181E; letter-spacing: -0.02em; }
+.aura-topnav .brand-name {
+  font-size: 18px; font-weight: 600; color: #15181E; letter-spacing: -0.02em; white-space: nowrap;
+}
 .aura-topnav .badge {
   font-size: 11px; font-weight: 500; color: #505F76; background: #F2F3FC;
-  border: 1px solid #CBD5E1; border-radius: 999px; padding: 3px 10px;
+  border: 1px solid #CBD5E1; border-radius: 999px; padding: 3px 10px; white-space: nowrap;
 }
 .aura-topnav .right { display: flex; align-items: center; gap: 0.75rem; }
 .aura-topnav .avatar {
   width: 32px; height: 32px; border-radius: 999px; background: #0F766E;
-  color: #fff; display: flex; align-items: center; justify-content: center;
+  color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600;
 }
+
+/* Sidebar under top bar + readable text */
+section[data-testid="stSidebar"] {
+  top: 56px !important; height: calc(100vh - 56px) !important;
+  background: #FFFFFF !important;
+  border-right: 1px solid #E7E5E0 !important;
+  z-index: 100 !important;
+}
+section[data-testid="stSidebar"] > div { background: #FFFFFF !important; }
+section[data-testid="stSidebar"] *,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+  color: #15181E !important;
+}
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+section[data-testid="stSidebar"] .stCaption {
+  color: #6B7280 !important;
+}
+section[data-testid="stSidebar"] input,
+section[data-testid="stSidebar"] [data-baseweb="input"],
+section[data-testid="stSidebar"] [data-baseweb="select"] > div {
+  background: #FFFFFF !important;
+  color: #15181E !important;
+  border: 1px solid #E7E5E0 !important;
+  border-radius: 6px !important;
+}
+
+.block-container {
+  padding-top: 4.5rem !important;
+  padding-bottom: 2rem !important;
+  max-width: 1100px !important;
+}
+
 .aura-card {
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
-  padding: 1.25rem 1.35rem; margin-bottom: 1rem; box-shadow: none;
+  padding: 1.25rem 1.35rem; margin-bottom: 1rem;
 }
 .aura-kpi {
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
@@ -71,7 +110,7 @@ header[data-testid="stHeader"] { background: transparent !important; }
   background: #0F766E !important; color: #fff !important; border: none !important;
   border-radius: 6px !important; font-weight: 500 !important; height: 36px !important;
 }
-.stButton > button:hover { background: #0D655E !important; }
+.stButton > button:hover { background: #0D655E !important; color: #fff !important; }
 div[data-testid="stMetric"] { display: none !important; }
 hr { border-color: #E7E5E0 !important; opacity: 1 !important; }
 """
@@ -79,23 +118,14 @@ hr { border-color: #E7E5E0 !important; opacity: 1 !important; }
 HEADER = """
 <div class="aura-topnav">
   <div class="brand">
-    <div class="logo" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#FFFFFF"/>
-      </svg>
-    </div>
+    <div class="logo">⚡</div>
     <span class="divider"></span>
-    <strong>AURA-EMS</strong>
+    <span class="brand-name">AURA-EMS</span>
     <span class="badge">Alliance University, Bangalore</span>
   </div>
   <div class="right">
     <span class="divider"></span>
-    <div class="avatar" aria-label="Profile">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z" stroke="#FFFFFF" stroke-width="1.8"/>
-        <path d="M4 20.2c1.7-3.2 4.5-4.7 8-4.7s6.3 1.5 8 4.7" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
-      </svg>
-    </div>
+    <div class="avatar" title="Profile">👤</div>
   </div>
 </div>
 """
