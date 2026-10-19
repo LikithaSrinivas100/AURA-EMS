@@ -27,7 +27,7 @@ Alliance University's campus energy demand is dynamic — academic blocks peak i
 
 ---
 
-## 3. The Results 
+## 3. The Results
 
 | Model | RMSE (kW) | MAE (kW) | MAPE (%) |
 |---|---|---|---|

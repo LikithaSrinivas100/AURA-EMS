@@ -18,7 +18,7 @@ frontend/
     forecast_chart.py          # Section C: actual vs predicted chart
     peaks_table.py             # Section D: peak risk panel
   services/
-    api_client.py              # GET wrappers for the 4 backend endpoints
+    api_client.py              # GET wrappers for the backend endpoints
     config.py                  # API_BASE_URL, timeout, risk colors
   requirements-frontend.txt
   README_FRONTEND.md
@@ -48,18 +48,21 @@ The app opens at `http://localhost:8501` by default.
 ## Backend API
 
 This dashboard calls Anushka's live FastAPI backend directly — there is no
-mock-data mode. Base URL is set in `services/config.py`:
+mock-data mode. Base URL is set in `services/config.py` (default local):
 
 ```python
-API_BASE_URL = "http://127.0.0.1:8001"
+API_BASE_URL = "http://127.0.0.1:8000"
 ```
 
 Before running the app:
 
-1. Confirm Anushka's FastAPI backend is running on port `8001`
-   (`GET http://127.0.0.1:8001/health` should return `{"status": "ok", ...}`).
+1. Confirm Anushka's FastAPI backend is running on port `8000`
+   (`GET http://127.0.0.1:8000/health` should return `{"status": "ok", ...}`).
 2. Start this Streamlit app.
 3. Confirm the health indicator at the top turns green.
+
+For a hosted backend, set the `API_BASE_URL` environment variable to its public
+URL. The Render Blueprint in the repository configures this for the dashboard.
 
 | Endpoint | Used for |
 |---|---|
@@ -67,6 +70,7 @@ Before running the app:
 | `GET /metrics/summary` | KPI cards (active model, RMSE, MAPE, MAE) |
 | `GET /forecasts?start=&end=` | actual vs predicted chart |
 | `GET /forecasts/peaks?limit=` | peak risk table |
+| `GET /forecasts/ahead?hours=` | 24h / 7-day zone forecast |
 
 If Anushka changes any field names, the fix is a one-line change in the
 matching `components/*.py` file — don't guess at renamed fields, confirm
@@ -77,7 +81,7 @@ with her first.
 Every API call in `services/api_client.py` returns `(data, error)`. If
 `error` is set (backend down, timeout, bad response), the dashboard shows:
 
-> Backend unavailable. Please start FastAPI on port 8001.
+> Backend unavailable. Please start FastAPI on port 8000.
 
 instead of crashing.
 
@@ -101,7 +105,7 @@ instead of crashing.
 - [x] Peak risk panel visible
 - [x] Clear error state if API is down
 - [x] Filters work (date range, peaks limit)
-- [x] Connected to live backend on port 8001 (mock mode removed)
+- [x] Connected to live backend on port 8000 (mock mode removed)
 - [x] README has run steps
 - [ ] 90-second demo script rehearsed out loud
 - [ ] PR opened from `frontend-dashboard` → `main`
