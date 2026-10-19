@@ -25,18 +25,34 @@ else:
 
 with st.sidebar:
     st.header("Filters")
+    st.caption(
+        "Start/End → Actual vs Predicted, Peaks, Carbon. "
+        "End date → Demand Forecast Ahead starts from that moment (clamped to available history)."
+    )
     start_date = st.date_input("Start date", value=default_start.date())
     start_time = st.time_input("Start time", value=default_start.time())
     end_date = st.date_input("End date", value=default_end.date())
     end_time = st.time_input("End time", value=default_end.time())
     peaks_limit = st.number_input("Peaks limit", min_value=1, max_value=50, value=DEFAULT_PEAKS_LIMIT)
     show_model_lines = st.checkbox("Show XGB / LGB lines", value=False)
-    forecast_from_end = st.checkbox("Forecast ahead from selected end date", value=False)
     st.button("Refresh", width="stretch")
 
 start_dt = datetime.combine(start_date, start_time).isoformat()
 end_dt = datetime.combine(end_date, end_time).isoformat()
-as_of = end_dt if forecast_from_end else None
+# Always anchor ahead forecast on End date, clamped into history (needs ≥24h prior)
+end_ts = pd.Timestamp(end_dt)
+max_ts = pd.Timestamp(default_end)
+min_ts = pd.Timestamp(default_start)
+earliest_as_of = min_ts + pd.Timedelta(hours=24)
+as_of_note = None
+if end_ts > max_ts:
+    as_of = max_ts.isoformat()
+    as_of_note = f"End date is after available history. Forecasting from last observation {max_ts}."
+elif end_ts < earliest_as_of:
+    as_of = earliest_as_of.isoformat()
+    as_of_note = f"End date needs 24h of prior history. Forecasting from {earliest_as_of}."
+else:
+    as_of = end_ts.isoformat()
 
 health, health_error = api_client.get_health()
 if health_error:
@@ -63,6 +79,12 @@ elif forecasts:
 
 st.divider()
 st.subheader("Demand Forecast Ahead")
+st.caption(
+    "Forecast starts right after your sidebar End date (24h or 7 days forward). "
+    "Change End date within available history to jump the chart."
+)
+if as_of_note:
+    st.info(as_of_note)
 horizon = st.radio("Horizon", ["Next 24 hours", "Next 7 days"], horizontal=True)
 hours = 24 if horizon == "Next 24 hours" else 168
 ahead, ahead_error = api_client.get_forecast_ahead(hours, as_of=as_of)
@@ -89,16 +111,20 @@ elif ahead:
 
 st.divider()
 st.subheader("Green Skills — Carbon & Cost Impact")
-carbon, carbon_error = api_client.get_carbon(hours, as_of=as_of)
+st.caption("Uses your sidebar Start/End dates (same window as Actual vs Predicted / Peaks).")
+carbon, carbon_error = api_client.get_carbon(hours, as_of=as_of, start=start_dt, end=end_dt)
 if carbon_error:
     st.error(carbon_error)
 elif carbon:
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("CO₂ avoided (kg)", f"{carbon['co2_avoided_kg']:.1f}")
-    c2.metric("Cost saved (₹)", f"{carbon['cost_saved_inr']:.0f}")
-    c3.metric("Energy avoided (kWh)", f"{carbon['energy_avoided_kwh']:.1f}")
-    c4.metric("Trees equiv.", f"{carbon['trees_equivalent']:.2f}")
-    st.caption(carbon.get("notes", ""))
+    if carbon["energy_avoided_kwh"] == 0 and "No rows" in carbon.get("notes", ""):
+        st.info(carbon["notes"])
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("CO₂ avoided (kg)", f"{carbon['co2_avoided_kg']:.1f}")
+        c2.metric("Cost saved (₹)", f"{carbon['cost_saved_inr']:.0f}")
+        c3.metric("Energy avoided (kWh)", f"{carbon['energy_avoided_kwh']:.1f}")
+        c4.metric("Trees equiv.", f"{carbon['trees_equivalent']:.2f}")
+        st.caption(carbon.get("notes", ""))
 
 st.divider()
 st.subheader("Peak Risk Windows")

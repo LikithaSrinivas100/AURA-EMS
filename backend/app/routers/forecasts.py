@@ -75,15 +75,34 @@ def get_forecast_ahead(
 
 @router.get("/forecasts/carbon", response_model=CarbonImpactResponse)
 def get_carbon_impact(
+    start: Optional[str] = Query(None, description="Start of selected filter window"),
+    end: Optional[str] = Query(None, description="End of selected filter window"),
     hours: int = Query(24, ge=1, le=168),
     as_of: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
 ):
-    try:
-        payload = forecast_ahead(hours, as_of or "")
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    items = payload.get("items") or []
-    totals = [float(i["total_kw"]) for i in items]
+    """Carbon impact for the selected date range (preferred), else ahead forecast."""
+    start_dt, end_dt = _parse_ts(start), _parse_ts(end)
+    totals: list[float] = []
+    source = "selected date range"
+
+    if start_dt or end_dt:
+        q = db.query(Forecast.best_pred_kw).filter(Forecast.best_pred_kw.isnot(None))
+        if start_dt:
+            q = q.filter(Forecast.ts >= start_dt)
+        if end_dt:
+            q = q.filter(Forecast.ts <= end_dt)
+        totals = [float(v[0]) for v in q.all()]
+        if start_dt and end_dt:
+            hours = max(1, int((end_dt - start_dt).total_seconds() // 3600) or 1)
+    else:
+        try:
+            payload = forecast_ahead(hours, as_of or "")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        totals = [float(i["total_kw"]) for i in (payload.get("items") or [])]
+        source = "ahead forecast"
+
     if not totals:
         return CarbonImpactResponse(
             hours=hours,
@@ -94,28 +113,28 @@ def get_carbon_impact(
             co2_avoided_kg=0.0,
             cost_saved_inr=0.0,
             trees_equivalent=0.0,
-            notes="No forecast rows available.",
+            notes=f"No rows in {source}. Pick dates inside available history.",
         )
+
+    p90, p75 = float(np.percentile(totals, 90)), float(np.percentile(totals, 75))
+    shaved = [min(v, p75) if v >= p90 else v for v in totals]
     forecast_energy_kwh = sum(totals) * _INTERVAL_HOURS
-    baseline_peak = max(totals)
-    p75 = float(np.percentile(totals, 75))
-    shaved = [min(v, p75) if i.get("risk_level") == "HIGH" else v for i, v in zip(items, totals)]
     energy_avoided = max(0.0, (sum(totals) - sum(shaved)) * _INTERVAL_HOURS)
     co2 = energy_avoided * INDIA_GRID_EF_KG_PER_KWH
     cost = energy_avoided * EDU_TARIFF_INR_PER_KWH
     return CarbonImpactResponse(
         hours=hours,
         forecast_energy_kwh=round(forecast_energy_kwh, 2),
-        baseline_peak_kw=round(baseline_peak, 2),
+        baseline_peak_kw=round(max(totals), 2),
         shaved_peak_kw=round(max(shaved), 2),
         energy_avoided_kwh=round(energy_avoided, 2),
         co2_avoided_kg=round(co2, 2),
         cost_saved_inr=round(cost, 2),
         trees_equivalent=round(co2 / _TREE_KG_CO2_PER_YEAR, 2),
         notes=(
-            f"Uses Indian grid EF {INDIA_GRID_EF_KG_PER_KWH} kg CO2/kWh and "
-            f"educational tariff ₹{EDU_TARIFF_INR_PER_KWH}/kWh. "
-            "HIGH-risk intervals capped at P75 demand."
+            f"Based on {source} ({len(totals)} intervals). "
+            f"Indian grid EF {INDIA_GRID_EF_KG_PER_KWH} kg CO2/kWh, "
+            f"tariff ₹{EDU_TARIFF_INR_PER_KWH}/kWh. HIGH (≥P90) capped at P75."
         ),
     )
 
