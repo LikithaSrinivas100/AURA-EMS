@@ -1,19 +1,18 @@
-"""AURA-EMS Streamlit dashboard — consumes FastAPI only."""
+"""AURA-EMS dashboard — Calculated Caliber UI; same FastAPI wiring."""
 from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 
+from components.ahead_chart import render_ahead_chart
 from components.forecast_chart import render_forecast_chart
-from components.metrics_cards import render_metrics_cards
 from components.peaks_table import render_peaks_table
+from components.theme import apply_theme, kpi_html
 from services import api_client
 from services.config import DEFAULT_PEAKS_LIMIT
 
 st.set_page_config(page_title="AURA-EMS | Campus Energy Demand Forecasting", layout="wide")
-
-st.title("AURA-EMS | Campus Energy Demand Forecasting")
-st.caption("Predictive demand forecasting to reduce peak-load risk and energy waste.")
+apply_theme()
 
 data_range, range_error = api_client.get_data_range()
 if data_range and not range_error:
@@ -24,25 +23,19 @@ else:
     default_end = datetime(2026, 9, 1)
 
 with st.sidebar:
-    st.header("Filters")
-    st.caption(
-        "Start/End → Actual vs Predicted, Peaks, Carbon. "
-        "End date → Demand Forecast Ahead starts from that moment (clamped to available history)."
-    )
-    start_date = st.date_input("Start date", value=default_start.date())
-    start_time = st.time_input("Start time", value=default_start.time())
-    end_date = st.date_input("End date", value=default_end.date())
-    end_time = st.time_input("End time", value=default_end.time())
+    st.markdown("### Filters")
+    st.caption("Telemetry · Start/End → history, peaks, carbon · End → forecast ahead")
+    start_date = st.date_input("Start window", value=default_start.date())
+    start_time = st.time_input("Start time", value=default_start.time(), label_visibility="collapsed")
+    end_date = st.date_input("End window", value=default_end.date())
+    end_time = st.time_input("End time", value=default_end.time(), label_visibility="collapsed")
     peaks_limit = st.number_input("Peaks limit", min_value=1, max_value=50, value=DEFAULT_PEAKS_LIMIT)
     show_model_lines = st.checkbox("Show XGB / LGB lines", value=False)
     st.button("Refresh", width="stretch")
 
 start_dt = datetime.combine(start_date, start_time).isoformat()
 end_dt = datetime.combine(end_date, end_time).isoformat()
-# Always anchor ahead forecast on End date, clamped into history (needs ≥24h prior)
-end_ts = pd.Timestamp(end_dt)
-max_ts = pd.Timestamp(default_end)
-min_ts = pd.Timestamp(default_start)
+end_ts, max_ts, min_ts = pd.Timestamp(end_dt), pd.Timestamp(default_end), pd.Timestamp(default_start)
 earliest_as_of = min_ts + pd.Timedelta(hours=24)
 as_of_note = None
 if end_ts > max_ts:
@@ -54,38 +47,53 @@ elif end_ts < earliest_as_of:
 else:
     as_of = end_ts.isoformat()
 
+# Header block
 health, health_error = api_client.get_health()
-if health_error:
-    st.error(f"🔴 {health_error}")
+status_html = (
+    f'<div class="aura-status-bad">Backend unavailable · {health_error}</div>'
+    if health_error
+    else '<div class="aura-status-ok">● Backend online</div>'
+)
+st.markdown(
+    f"""
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem;">
+      <div>
+        <div style="font-size:24px;font-weight:600;color:#15181E;letter-spacing:-0.015em;">AURA-EMS</div>
+        <div style="font-size:14px;color:#6B7280;">Campus energy demand forecasting</div>
+        <div style="font-size:12px;color:#6B7280;">Predictive demand forecasting to reduce peak-load risk and energy waste</div>
+      </div>
+      <div>{status_html}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-st.divider()
 metrics, metrics_error = api_client.get_metrics()
 if metrics_error:
     st.error(metrics_error)
 elif metrics:
-    render_metrics_cards(metrics)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.markdown(kpi_html("Active model", str(metrics.get("active_model", "—")), sub="Production model"), unsafe_allow_html=True)
+    c2.markdown(kpi_html("RMSE", f"{metrics.get('rmse', 0):.2f}", "kW", "Root mean squared error"), unsafe_allow_html=True)
+    c3.markdown(kpi_html("MAPE", f"{metrics.get('mape', 0):.2f}", "%", "Mean absolute pct error"), unsafe_allow_html=True)
+    c4.markdown(kpi_html("MAE", f"{metrics.get('mae', 0):.2f}", "kW", "Mean absolute error"), unsafe_allow_html=True)
 
-st.divider()
-st.subheader("Actual vs Predicted Demand")
+st.markdown('<div class="aura-card"><div class="aura-sec-title">Actual vs predicted demand</div>', unsafe_allow_html=True)
 forecasts, forecasts_error = api_client.get_forecasts(start_dt, end_dt)
 if forecasts_error:
     st.error(forecasts_error)
 elif forecasts:
     items = forecasts.get("items", [])
     if not items:
-        st.info("No rows in the selected date range. Widen the filter.")
+        st.info("No data for the selected dates")
     else:
         render_forecast_chart(items, show_model_lines=show_model_lines)
+st.markdown("</div>", unsafe_allow_html=True)
 
-st.divider()
-st.subheader("Demand Forecast Ahead")
-st.caption(
-    "Forecast starts right after your sidebar End date (24h or 7 days forward). "
-    "Change End date within available history to jump the chart."
-)
+st.markdown('<div class="aura-card"><div class="aura-sec-title">Demand forecast ahead</div>', unsafe_allow_html=True)
 if as_of_note:
     st.info(as_of_note)
-horizon = st.radio("Horizon", ["Next 24 hours", "Next 7 days"], horizontal=True)
+horizon = st.radio("Horizon", ["Next 24 hours", "Next 7 days"], horizontal=True, label_visibility="collapsed")
 hours = 24 if horizon == "Next 24 hours" else 168
 ahead, ahead_error = api_client.get_forecast_ahead(hours, as_of=as_of)
 if ahead_error:
@@ -94,24 +102,23 @@ elif ahead:
     ahead_df = pd.DataFrame(ahead.get("items", []))
     if not ahead_df.empty:
         ahead_df["ts"] = pd.to_datetime(ahead_df["ts"])
-        st.caption(
-            f"From last observation at {ahead['generated_from']} | Weather: {ahead['weather_source']} | "
-            f"Exam intervals: {int(ahead_df['is_exam'].sum())} | Vacation intervals: {int(ahead_df['is_vacation'].sum())}"
+        st.markdown(
+            f'<div class="aura-sec-sub">From {ahead["generated_from"]} · Weather: {ahead["weather_source"]} · '
+            f'Exam intervals: {int(ahead_df["is_exam"].sum())}, Vacation: {int(ahead_df["is_vacation"].sum())}</div>',
+            unsafe_allow_html=True,
         )
-        zone_cols = {"total_kw": "Total campus", "academic_kw": "Academic blocks", "hostel_kw": "Hostels"}
-        st.line_chart(ahead_df.set_index("ts")[list(zone_cols)].rename(columns=zone_cols))
+        render_ahead_chart(ahead_df)
         high = ahead_df[ahead_df["risk_level"] == "HIGH"]
         if high.empty:
-            st.success(f"No HIGH peak-risk intervals expected in the {horizon.lower()}.")
+            st.success("No HIGH peaks expected.")
         else:
-            st.warning(
-                f"{len(high)} HIGH peak-risk intervals expected — peak {high['total_kw'].max():.1f} kW "
+            st.error(
+                f"{len(high)} HIGH peak intervals expected — peak {high['total_kw'].max():.1f} kW "
                 f"at {high.loc[high['total_kw'].idxmax(), 'ts']}."
             )
+st.markdown("</div>", unsafe_allow_html=True)
 
-st.divider()
-st.subheader("Green Skills — Carbon & Cost Impact")
-st.caption("Uses your sidebar Start/End dates (same window as Actual vs Predicted / Peaks).")
+st.markdown('<div class="aura-sec-title">Green Skills: carbon and cost impact</div>', unsafe_allow_html=True)
 carbon, carbon_error = api_client.get_carbon(hours, as_of=as_of, start=start_dt, end=end_dt)
 if carbon_error:
     st.error(carbon_error)
@@ -119,25 +126,22 @@ elif carbon:
     if carbon["energy_avoided_kwh"] == 0 and "No rows" in carbon.get("notes", ""):
         st.info(carbon["notes"])
     else:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("CO₂ avoided (kg)", f"{carbon['co2_avoided_kg']:.1f}")
-        c2.metric("Cost saved (₹)", f"{carbon['cost_saved_inr']:.0f}")
-        c3.metric("Energy avoided (kWh)", f"{carbon['energy_avoided_kwh']:.1f}")
-        c4.metric("Trees equiv.", f"{carbon['trees_equivalent']:.2f}")
+        g1, g2, g3, g4 = st.columns(4)
+        g1.markdown(kpi_html("CO₂ avoided", f"{carbon['co2_avoided_kg']:.1f}", "kg", "Peak-shave estimate", True), unsafe_allow_html=True)
+        g2.markdown(kpi_html("Cost saved", f"₹{carbon['cost_saved_inr']:.0f}", "", "Avoided surcharges", True), unsafe_allow_html=True)
+        g3.markdown(kpi_html("Energy avoided", f"{carbon['energy_avoided_kwh']:.1f}", "kWh", "Curtailment & load shifting"), unsafe_allow_html=True)
+        g4.markdown(kpi_html("Trees equivalent", f"{carbon['trees_equivalent']:.2f}", "trees", "Annual sequestration index"), unsafe_allow_html=True)
         st.caption(carbon.get("notes", ""))
 
-st.divider()
-st.subheader("Peak Risk Windows")
+st.markdown('<div class="aura-card"><div class="aura-sec-title">Peak risk windows</div>', unsafe_allow_html=True)
 peaks, peaks_error = api_client.get_peaks(limit=int(peaks_limit), start=start_dt, end=end_dt)
 if peaks_error:
     st.error(peaks_error)
 elif peaks:
     render_peaks_table(peaks.get("items", []))
+st.markdown("</div>", unsafe_allow_html=True)
 
-st.divider()
 footer_cols = st.columns(2)
-footer_cols[0].caption(
-    "Data-driven decision support tool. Not a replacement for official BESCOM billing systems."
-)
+footer_cols[0].caption("Decision-support tool, not a replacement for official BESCOM billing.")
 if metrics and not metrics_error:
     footer_cols[1].caption(f"Model in use: {metrics.get('active_model', 'n/a')}")
