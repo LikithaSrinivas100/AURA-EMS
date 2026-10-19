@@ -50,10 +50,19 @@ def get_forecast_ahead(hours: int = 24, as_of: Optional[str] = None) -> Tuple[Op
     return _get("/forecasts/ahead", params=params)
 
 
-def get_carbon(hours: int = 24, as_of: Optional[str] = None) -> Tuple[Optional[Dict], Optional[str]]:
+def get_carbon(
+    hours: int = 24,
+    as_of: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Tuple[Optional[Dict], Optional[str]]:
     params = {"hours": hours}
     if as_of:
         params["as_of"] = as_of
+    if start:
+        params["start"] = start
+    if end:
+        params["end"] = end
     return _get("/forecasts/carbon", params=params)
 
 
