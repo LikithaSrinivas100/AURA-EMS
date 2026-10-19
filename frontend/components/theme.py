@@ -1,4 +1,4 @@
-"""Calculated Caliber shell — Streamlit chrome matching new_design."""
+"""Calculated Caliber shell — readable contrast; sidebar stays usable."""
 
 import streamlit as st
 
@@ -11,7 +11,6 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stText, button, input, label {
 }
 .stApp { background: #F5F4F0 !important; color: #15181E !important; }
 
-/* Keep Streamlit header for sidebar expand control, but visually hide chrome */
 header[data-testid="stHeader"] {
   background: transparent !important;
   height: 0 !important;
@@ -19,69 +18,47 @@ header[data-testid="stHeader"] {
 }
 #MainMenu, footer { visibility: hidden; }
 
-/* Always show the collapsed-sidebar reopen control */
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"] {
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  z-index: 1000002 !important;
-  position: fixed !important;
-  top: 64px !important;
-  left: 10px !important;
-}
-[data-testid="stSidebarCollapsedControl"] button,
-[data-testid="collapsedControl"] button {
-  background: #FFFFFF !important;
-  border: 1px solid #E7E5E0 !important;
-  border-radius: 6px !important;
-  color: #15181E !important;
-  box-shadow: none !important;
+/* Prevent collapsing filters (reliable vs broken reopen) */
+section[data-testid="stSidebar"] button[kind="header"],
+section[data-testid="stSidebar"] button[kind="headerNoPadding"],
+section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"],
+section[data-testid="stSidebar"] [data-testid="baseButton-header"],
+section[data-testid="stSidebar"] [data-testid="baseButton-headerNoPadding"] {
+  display: none !important;
 }
 
-/* Fixed top bar ABOVE sidebar */
 .aura-topnav {
   position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 1000000;
   background: #FFFFFF;
   border-bottom: 1px solid #E7E5E0;
   border-top: 3px solid #6366F1;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 1.25rem;
-  box-sizing: border-box;
+  padding: 0 1.25rem; box-sizing: border-box;
 }
-.aura-topnav .menu-btn {
-  width: 32px; height: 32px; border-radius: 6px; border: 1px solid #E7E5E0;
-  background: #FFFFFF; color: #15181E; cursor: pointer; font-size: 18px;
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.aura-topnav .menu-btn:hover { background: #F5F4F0; border-color: #D6D3CD; }
-.aura-topnav .brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.aura-topnav .brand { display: flex; align-items: center; gap: 0.75rem; }
 .aura-topnav .logo {
   width: 32px; height: 32px; border-radius: 8px; background: #0F766E;
   display: inline-flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 16px; font-weight: 700; flex-shrink: 0;
+  color: #fff; font-size: 16px; font-weight: 700;
 }
-.aura-topnav .divider { width: 1px; height: 20px; background: #D1D5DB; flex-shrink: 0; }
-.aura-topnav .brand-name {
-  font-size: 18px; font-weight: 600; color: #15181E; letter-spacing: -0.02em; white-space: nowrap;
-}
+.aura-topnav .divider { width: 1px; height: 20px; background: #D1D5DB; }
+.aura-topnav .brand-name { font-size: 18px; font-weight: 600; color: #15181E; }
 .aura-topnav .badge {
-  font-size: 11px; font-weight: 500; color: #505F76; background: #F2F3FC;
-  border: 1px solid #CBD5E1; border-radius: 999px; padding: 3px 10px; white-space: nowrap;
+  font-size: 11px; font-weight: 500; color: #374151; background: #F2F3FC;
+  border: 1px solid #CBD5E1; border-radius: 999px; padding: 3px 10px;
 }
 .aura-topnav .right { display: flex; align-items: center; gap: 0.75rem; }
 .aura-topnav .avatar {
   width: 32px; height: 32px; border-radius: 999px; background: #0F766E;
   color: #fff; display: inline-flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 600;
 }
 
-/* Sidebar under top bar + readable text */
 section[data-testid="stSidebar"] {
   top: 56px !important; height: calc(100vh - 56px) !important;
   background: #FFFFFF !important;
   border-right: 1px solid #E7E5E0 !important;
-  z-index: 100 !important;
+  transform: none !important;
+  margin-left: 0 !important;
 }
 section[data-testid="stSidebar"] > div { background: #FFFFFF !important; }
 section[data-testid="stSidebar"] *,
@@ -93,24 +70,39 @@ section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {
   color: #15181E !important;
 }
-section[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
-section[data-testid="stSidebar"] .stCaption {
-  color: #6B7280 !important;
-}
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] { color: #4B5563 !important; }
 section[data-testid="stSidebar"] input,
-section[data-testid="stSidebar"] [data-baseweb="input"],
+section[data-testid="stSidebar"] [data-baseweb="input"] input,
 section[data-testid="stSidebar"] [data-baseweb="select"] > div {
-  background: #FFFFFF !important;
-  color: #15181E !important;
-  border: 1px solid #E7E5E0 !important;
-  border-radius: 6px !important;
+  background: #FFFFFF !important; color: #15181E !important;
+  border: 1px solid #E7E5E0 !important; border-radius: 6px !important;
 }
 
 .block-container {
-  padding-top: 4.5rem !important;
+  padding-top: 4.25rem !important;
   padding-bottom: 2rem !important;
   max-width: 1100px !important;
 }
+
+/* Radio / checkbox labels readable */
+div[role="radiogroup"] label,
+div[role="radiogroup"] p,
+.stRadio label, .stCheckbox label, .stCheckbox span {
+  color: #15181E !important;
+  opacity: 1 !important;
+}
+
+/* Alerts — dark text on tinted bg */
+div[data-testid="stAlert"] { color: #15181E !important; }
+div[data-testid="stAlert"] * { color: inherit !important; }
+div[data-testid="stAlert"] [data-baseweb="notification"] { color: #15181E !important; }
+/* Warning */
+div[data-testid="stAlert"]:has([kind="warning"]),
+div[data-testid="stNotification"] {
+  background: #FFF7ED !important; border: 1px solid #FDBA74 !important; color: #9A3412 !important;
+}
+/* Force warning text */
+.stAlert p, [data-testid="stAlert"] p { color: #9A3412 !important; }
 
 .aura-card {
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
@@ -121,34 +113,41 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div {
   padding: 1.15rem 1.2rem; height: 100%;
 }
 .aura-kpi .lbl {
-  font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6B7280;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #4B5563;
 }
 .aura-kpi .val {
-  margin-top: 0.65rem; font-size: 28px; font-weight: 600; color: #15181E; letter-spacing: -0.02em;
+  margin-top: 0.65rem; font-size: 28px; font-weight: 600; color: #15181E;
 }
-.aura-kpi .unit { font-size: 14px; color: #6B7280; margin-left: 4px; font-weight: 400; }
-.aura-kpi .sub { margin-top: 0.35rem; font-size: 12px; color: #6B7280; }
+.aura-kpi .unit { font-size: 14px; color: #4B5563; margin-left: 4px; }
+.aura-kpi .sub { margin-top: 0.35rem; font-size: 12px; color: #4B5563; }
 .aura-kpi .sub.good { color: #15803D; font-weight: 500; }
-.aura-status-ok { color: #15803D; font-size: 13px; font-weight: 500; }
-.aura-status-bad {
-  color: #B91C1C; background: #FEF2F2; border: 1px solid rgba(185,28,28,.4);
-  border-radius: 6px; padding: 6px 10px; font-size: 12px; display: inline-block;
+.aura-sec-title { font-size: 16px; font-weight: 600; color: #15181E; margin: 0 0 0.5rem 0; }
+.aura-sec-sub { font-size: 12px; color: #374151; margin-bottom: 0.75rem; }
+.aura-warn {
+  background: #FEF2F2; border-left: 4px solid #B91C1C; color: #991B1B;
+  padding: 12px 14px; border-radius: 0 6px 6px 0; font-size: 13px; font-weight: 500; margin: 8px 0;
 }
-.aura-sec-title { font-size: 16px; font-weight: 600; color: #15181E; margin: 0 0 0.35rem 0; }
-.aura-sec-sub { font-size: 12px; color: #6B7280; margin-bottom: 0.75rem; }
+.aura-ok {
+  background: #F0FDF4; border-left: 4px solid #15803D; color: #166534;
+  padding: 12px 14px; border-radius: 0 6px 6px 0; font-size: 13px; font-weight: 500; margin: 8px 0;
+}
+.aura-action {
+  background: #FFFBEB; border: 1px solid #F59E0B; color: #92400E;
+  padding: 12px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; margin-top: 10px;
+}
 .stButton > button {
   background: #0F766E !important; color: #fff !important; border: none !important;
   border-radius: 6px !important; font-weight: 500 !important; height: 36px !important;
 }
 .stButton > button:hover { background: #0D655E !important; color: #fff !important; }
 div[data-testid="stMetric"] { display: none !important; }
-hr { border-color: #E7E5E0 !important; opacity: 1 !important; }
+hr { border-color: #E7E5E0 !important; }
+[data-testid="stCaptionContainer"] { color: #374151 !important; }
 """
 
 HEADER = """
 <div class="aura-topnav">
   <div class="brand">
-    <button type="button" class="menu-btn" id="aura-sidebar-toggle" title="Open filters sidebar">☰</button>
     <div class="logo">⚡</div>
     <span class="divider"></span>
     <span class="brand-name">AURA-EMS</span>
@@ -156,57 +155,15 @@ HEADER = """
   </div>
   <div class="right">
     <span class="divider"></span>
-    <div class="avatar" title="Profile">👤</div>
+    <div class="avatar">👤</div>
   </div>
 </div>
-"""
-
-
-_TOGGLE_JS = """
-<script>
-(function () {
-  function reopenSidebar() {
-    var selectors = [
-      '[data-testid="stSidebarCollapsedControl"] button',
-      '[data-testid="collapsedControl"] button',
-      '[data-testid="stExpandSidebarButton"]',
-      'button[kind="headerNoPadding"]',
-      'button[kind="header"]'
-    ];
-    for (var i = 0; i < selectors.length; i++) {
-      var btn = document.querySelector(selectors[i]);
-      if (btn) { btn.click(); return; }
-    }
-  }
-  function bind() {
-    var t = document.getElementById('aura-sidebar-toggle');
-    if (t && !t.dataset.bound) {
-      t.dataset.bound = '1';
-      t.addEventListener('click', reopenSidebar);
-    }
-    var el = document.querySelector('[data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"]');
-    if (el) {
-      el.style.display = 'flex';
-      el.style.visibility = 'visible';
-      el.style.opacity = '1';
-      el.style.zIndex = '1000002';
-    }
-  }
-  bind();
-  new MutationObserver(bind).observe(document.body, { childList: true, subtree: true });
-})();
-</script>
 """
 
 
 def apply_theme() -> None:
     st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
     st.markdown(HEADER, unsafe_allow_html=True)
-    try:
-        import streamlit.components.v1 as components
-        components.html(_TOGGLE_JS, height=0)
-    except Exception:
-        pass
 
 
 def kpi_html(label: str, value: str, unit: str = "", sub: str = "", good: bool = False) -> str:

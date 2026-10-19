@@ -11,7 +11,11 @@ from components.theme import apply_theme, kpi_html
 from services import api_client
 from services.config import DEFAULT_PEAKS_LIMIT
 
-st.set_page_config(page_title="AURA-EMS | Campus Energy Demand Forecasting", layout="wide")
+st.set_page_config(
+    page_title="AURA-EMS | Campus Energy Demand Forecasting",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 apply_theme()
 
 data_range, range_error = api_client.get_data_range()
@@ -24,7 +28,7 @@ else:
 
 with st.sidebar:
     st.markdown("### Filters")
-    st.caption("Telemetry · Start/End → history, peaks, carbon · End → forecast ahead")
+    st.caption("Start/End → history, peaks, carbon · End → forecast ahead")
     start_date = st.date_input("Start window", value=default_start.date())
     start_time = st.time_input("Start time", value=default_start.time(), label_visibility="collapsed")
     end_date = st.date_input("End window", value=default_end.date())
@@ -47,30 +51,16 @@ elif end_ts < earliest_as_of:
 else:
     as_of = end_ts.isoformat()
 
-# Header block
 health, health_error = api_client.get_health()
-status_html = (
-    f'<div class="aura-status-bad">Backend unavailable · {health_error}</div>'
-    if health_error
-    else '<div class="aura-status-ok">● Backend online</div>'
-)
-st.markdown(
-    f"""
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem;">
-      <div>
-        <div style="font-size:24px;font-weight:600;color:#15181E;letter-spacing:-0.015em;">AURA-EMS</div>
-        <div style="font-size:14px;color:#6B7280;">Campus energy demand forecasting</div>
-        <div style="font-size:12px;color:#6B7280;">Predictive demand forecasting to reduce peak-load risk and energy waste</div>
-      </div>
-      <div>{status_html}</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+if health_error:
+    st.markdown(
+        f'<div class="aura-warn">Backend unavailable · {health_error}</div>',
+        unsafe_allow_html=True,
+    )
 
 metrics, metrics_error = api_client.get_metrics()
 if metrics_error:
-    st.error(metrics_error)
+    st.markdown(f'<div class="aura-warn">{metrics_error}</div>', unsafe_allow_html=True)
 elif metrics:
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(kpi_html("Active model", str(metrics.get("active_model", "—")), sub="Production model"), unsafe_allow_html=True)
@@ -81,7 +71,7 @@ elif metrics:
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Actual vs predicted demand</div>', unsafe_allow_html=True)
 forecasts, forecasts_error = api_client.get_forecasts(start_dt, end_dt)
 if forecasts_error:
-    st.error(forecasts_error)
+    st.markdown(f'<div class="aura-warn">{forecasts_error}</div>', unsafe_allow_html=True)
 elif forecasts:
     items = forecasts.get("items", [])
     if not items:
@@ -97,7 +87,7 @@ horizon = st.radio("Horizon", ["Next 24 hours", "Next 7 days"], horizontal=True,
 hours = 24 if horizon == "Next 24 hours" else 168
 ahead, ahead_error = api_client.get_forecast_ahead(hours, as_of=as_of)
 if ahead_error:
-    st.error(ahead_error)
+    st.markdown(f'<div class="aura-warn">{ahead_error}</div>', unsafe_allow_html=True)
 elif ahead:
     ahead_df = pd.DataFrame(ahead.get("items", []))
     if not ahead_df.empty:
@@ -110,18 +100,19 @@ elif ahead:
         render_ahead_chart(ahead_df)
         high = ahead_df[ahead_df["risk_level"] == "HIGH"]
         if high.empty:
-            st.success("No HIGH peaks expected.")
+            st.markdown('<div class="aura-ok">No HIGH peaks expected.</div>', unsafe_allow_html=True)
         else:
-            st.error(
-                f"{len(high)} HIGH peak intervals expected — peak {high['total_kw'].max():.1f} kW "
-                f"at {high.loc[high['total_kw'].idxmax(), 'ts']}."
+            st.markdown(
+                f'<div class="aura-warn">{len(high)} HIGH peak intervals expected — peak '
+                f'{high["total_kw"].max():.1f} kW at {high.loc[high["total_kw"].idxmax(), "ts"]}.</div>',
+                unsafe_allow_html=True,
             )
 st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown('<div class="aura-sec-title">Green Skills: carbon and cost impact</div>', unsafe_allow_html=True)
 carbon, carbon_error = api_client.get_carbon(hours, as_of=as_of, start=start_dt, end=end_dt)
 if carbon_error:
-    st.error(carbon_error)
+    st.markdown(f'<div class="aura-warn">{carbon_error}</div>', unsafe_allow_html=True)
 elif carbon:
     if carbon["energy_avoided_kwh"] == 0 and "No rows" in carbon.get("notes", ""):
         st.info(carbon["notes"])
@@ -136,7 +127,7 @@ elif carbon:
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Peak risk windows</div>', unsafe_allow_html=True)
 peaks, peaks_error = api_client.get_peaks(limit=int(peaks_limit), start=start_dt, end=end_dt)
 if peaks_error:
-    st.error(peaks_error)
+    st.markdown(f'<div class="aura-warn">{peaks_error}</div>', unsafe_allow_html=True)
 elif peaks:
     render_peaks_table(peaks.get("items", []))
 st.markdown("</div>", unsafe_allow_html=True)
