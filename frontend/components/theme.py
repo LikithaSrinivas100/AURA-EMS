@@ -1,4 +1,4 @@
-"""Calculated Caliber shell — readable contrast; sidebar stays usable."""
+"""Calculated Caliber shell — readable contrast; sidebar stays open."""
 
 import streamlit as st
 
@@ -18,13 +18,27 @@ header[data-testid="stHeader"] {
 }
 #MainMenu, footer { visibility: hidden; }
 
-/* Prevent collapsing filters (reliable vs broken reopen) */
+/* Permanently hide every Streamlit sidebar collapse / hamburger control */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+button[kind="header"],
+button[kind="headerNoPadding"],
+[data-testid="baseButton-header"],
+[data-testid="baseButton-headerNoPadding"],
 section[data-testid="stSidebar"] button[kind="header"],
 section[data-testid="stSidebar"] button[kind="headerNoPadding"],
 section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"],
 section[data-testid="stSidebar"] [data-testid="baseButton-header"],
-section[data-testid="stSidebar"] [data-testid="baseButton-headerNoPadding"] {
+section[data-testid="stSidebar"] [data-testid="baseButton-headerNoPadding"],
+section[data-testid="stSidebar"] [data-testid="stBaseButton-header"],
+section[data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"] {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
 }
 
 .aura-topnav {
@@ -59,8 +73,28 @@ section[data-testid="stSidebar"] {
   border-right: 1px solid #E7E5E0 !important;
   transform: none !important;
   margin-left: 0 !important;
+  left: 0 !important;
+  visibility: visible !important;
+  display: block !important;
+  opacity: 1 !important;
+  min-width: 21rem !important;
+  width: 21rem !important;
+  z-index: 999999 !important;
 }
-section[data-testid="stSidebar"] > div { background: #FFFFFF !important; }
+section[data-testid="stSidebar"][aria-expanded="false"],
+section[data-testid="stSidebar"].collapsed {
+  transform: none !important;
+  margin-left: 0 !important;
+  left: 0 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+div[data-testid="stSidebarContent"],
+section[data-testid="stSidebar"] > div {
+  background: #FFFFFF !important;
+  visibility: visible !important;
+  display: flex !important;
+}
 section[data-testid="stSidebar"] *,
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
@@ -84,25 +118,12 @@ section[data-testid="stSidebar"] [data-baseweb="select"] > div {
   max-width: 1100px !important;
 }
 
-/* Radio / checkbox labels readable */
 div[role="radiogroup"] label,
 div[role="radiogroup"] p,
 .stRadio label, .stCheckbox label, .stCheckbox span {
   color: #15181E !important;
   opacity: 1 !important;
 }
-
-/* Alerts — dark text on tinted bg */
-div[data-testid="stAlert"] { color: #15181E !important; }
-div[data-testid="stAlert"] * { color: inherit !important; }
-div[data-testid="stAlert"] [data-baseweb="notification"] { color: #15181E !important; }
-/* Warning */
-div[data-testid="stAlert"]:has([kind="warning"]),
-div[data-testid="stNotification"] {
-  background: #FFF7ED !important; border: 1px solid #FDBA74 !important; color: #9A3412 !important;
-}
-/* Force warning text */
-.stAlert p, [data-testid="stAlert"] p { color: #9A3412 !important; }
 
 .aura-card {
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
@@ -161,9 +182,46 @@ HEADER = """
 """
 
 
+# Keep sidebar expanded: re-open if Streamlit collapses it, strip hide controls.
+_SIDEBAR_LOCK_JS = """
+<script>
+(function () {
+  const root = window.parent.document;
+  function unlock() {
+    const sidebar = root.querySelector('section[data-testid="stSidebar"]');
+    if (sidebar) {
+      sidebar.style.transform = 'none';
+      sidebar.style.marginLeft = '0';
+      sidebar.style.left = '0';
+      sidebar.style.visibility = 'visible';
+      sidebar.style.display = 'block';
+      sidebar.setAttribute('aria-expanded', 'true');
+    }
+    root.querySelectorAll(
+      '[data-testid="collapsedControl"],[data-testid="stSidebarCollapsedControl"],' +
+      '[data-testid="stSidebarCollapseButton"],button[kind="header"],button[kind="headerNoPadding"]'
+    ).forEach(function (el) {
+      el.style.display = 'none';
+      el.style.pointerEvents = 'none';
+    });
+    const expander = root.querySelector('[data-testid="collapsedControl"]');
+    if (expander && expander.offsetParent !== null) {
+      try { expander.click(); } catch (e) {}
+    }
+  }
+  unlock();
+  if (!window.__auraSidebarLock) {
+    window.__auraSidebarLock = setInterval(unlock, 400);
+  }
+})();
+</script>
+"""
+
+
 def apply_theme() -> None:
     st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
     st.markdown(HEADER, unsafe_allow_html=True)
+    st.components.v1.html(_SIDEBAR_LOCK_JS, height=0)
 
 
 def kpi_html(label: str, value: str, unit: str = "", sub: str = "", good: bool = False) -> str:

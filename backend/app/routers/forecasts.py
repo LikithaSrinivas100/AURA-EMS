@@ -154,7 +154,7 @@ def get_peaks(
     end: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """Top peak intervals. Thresholds from ordered ranks (avoids loading full series — Render-safe)."""
+    """Top peaks using rank thresholds (Render-safe; no full-series load)."""
     start_dt, end_dt = _parse_ts(start), _parse_ts(end)
     base = db.query(Forecast).filter(Forecast.best_pred_kw.isnot(None))
     if start_dt:
@@ -166,7 +166,6 @@ def get_peaks(
     if total == 0:
         return PeaksResponse(items=[])
 
-    # Rank-based thresholds without loading every float into memory
     ordered = base.order_by(Forecast.best_pred_kw.desc())
     p90_row = ordered.offset(max(0, int(total * 0.10))).limit(1).first()
     p75_row = ordered.offset(max(0, int(total * 0.25))).limit(1).first()

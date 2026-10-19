@@ -7,7 +7,7 @@ _raw = (
     or "http://127.0.0.1:8000"
 ).rstrip("/")
 API_BASE_URL = _raw if _raw.startswith("http") else f"https://{_raw}"
-REQUEST_TIMEOUT = 60  # Render free tier cold-start / large forecast windows
+REQUEST_TIMEOUT = 60
 
 DEFAULT_PEAKS_LIMIT = 10
 
