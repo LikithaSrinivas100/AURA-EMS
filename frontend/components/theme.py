@@ -18,12 +18,27 @@ header[data-testid="stHeader"] {
 }
 #MainMenu, footer { visibility: hidden; }
 
+/* Permanently hide every Streamlit sidebar collapse / hamburger control */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+button[kind="header"],
+button[kind="headerNoPadding"],
+[data-testid="baseButton-header"],
+[data-testid="baseButton-headerNoPadding"],
 section[data-testid="stSidebar"] button[kind="header"],
 section[data-testid="stSidebar"] button[kind="headerNoPadding"],
 section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"],
 section[data-testid="stSidebar"] [data-testid="baseButton-header"],
-section[data-testid="stSidebar"] [data-testid="baseButton-headerNoPadding"] {
+section[data-testid="stSidebar"] [data-testid="baseButton-headerNoPadding"],
+section[data-testid="stSidebar"] [data-testid="stBaseButton-header"],
+section[data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"] {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
 }
 
 .aura-topnav {
@@ -58,8 +73,28 @@ section[data-testid="stSidebar"] {
   border-right: 1px solid #E7E5E0 !important;
   transform: none !important;
   margin-left: 0 !important;
+  left: 0 !important;
+  visibility: visible !important;
+  display: block !important;
+  opacity: 1 !important;
+  min-width: 21rem !important;
+  width: 21rem !important;
+  z-index: 999999 !important;
 }
-section[data-testid="stSidebar"] > div { background: #FFFFFF !important; }
+section[data-testid="stSidebar"][aria-expanded="false"],
+section[data-testid="stSidebar"].collapsed {
+  transform: none !important;
+  margin-left: 0 !important;
+  left: 0 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+div[data-testid="stSidebarContent"],
+section[data-testid="stSidebar"] > div {
+  background: #FFFFFF !important;
+  visibility: visible !important;
+  display: flex !important;
+}
 section[data-testid="stSidebar"] *,
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
@@ -147,9 +182,46 @@ HEADER = """
 """
 
 
+# Keep sidebar expanded: re-open if Streamlit collapses it, strip hide controls.
+_SIDEBAR_LOCK_JS = """
+<script>
+(function () {
+  const root = window.parent.document;
+  function unlock() {
+    const sidebar = root.querySelector('section[data-testid="stSidebar"]');
+    if (sidebar) {
+      sidebar.style.transform = 'none';
+      sidebar.style.marginLeft = '0';
+      sidebar.style.left = '0';
+      sidebar.style.visibility = 'visible';
+      sidebar.style.display = 'block';
+      sidebar.setAttribute('aria-expanded', 'true');
+    }
+    root.querySelectorAll(
+      '[data-testid="collapsedControl"],[data-testid="stSidebarCollapsedControl"],' +
+      '[data-testid="stSidebarCollapseButton"],button[kind="header"],button[kind="headerNoPadding"]'
+    ).forEach(function (el) {
+      el.style.display = 'none';
+      el.style.pointerEvents = 'none';
+    });
+    const expander = root.querySelector('[data-testid="collapsedControl"]');
+    if (expander && expander.offsetParent !== null) {
+      try { expander.click(); } catch (e) {}
+    }
+  }
+  unlock();
+  if (!window.__auraSidebarLock) {
+    window.__auraSidebarLock = setInterval(unlock, 400);
+  }
+})();
+</script>
+"""
+
+
 def apply_theme() -> None:
     st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
     st.markdown(HEADER, unsafe_allow_html=True)
+    st.components.v1.html(_SIDEBAR_LOCK_JS, height=0)
 
 
 def kpi_html(label: str, value: str, unit: str = "", sub: str = "", good: bool = False) -> str:
