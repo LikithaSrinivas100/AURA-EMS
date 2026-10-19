@@ -1,20 +1,29 @@
+# Render Blueprint — creates both services from this repo.
+# After connecting the repo on Render: New → Blueprint → select this repo.
 services:
   - type: web
-    name: aura-ems-api
+    name: aura-ems-backend
     runtime: python
     plan: free
-    rootDir: backend
-    buildCommand: pip install -r requirements-backend.txt
-    startCommand: python scripts/seed_db.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    rootDir: .
+    buildCommand: pip install -r backend/requirements-backend.txt && cd backend && python scripts/seed_db.py
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
 
   - type: web
-    name: aura-ems-dashboard
+    name: aura-ems-frontend
     runtime: python
     plan: free
-    rootDir: frontend
-    buildCommand: pip install -r requirements-frontend.txt
-    startCommand: streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true
+    rootDir: .
+    buildCommand: pip install -r frontend/requirements-frontend.txt
+    startCommand: >-
+      cd frontend && streamlit run app.py
+      --server.port $PORT
+      --server.address 0.0.0.0
+      --server.headless true
     envVars:
       - key: API_BASE_URL
-        value: https://aura-ems-api.onrender.com
+        fromService:
+          name: aura-ems-backend
+          type: web
+          property: host

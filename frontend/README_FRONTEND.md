@@ -18,7 +18,7 @@ frontend/
     forecast_chart.py          # Section C: actual vs predicted chart
     peaks_table.py             # Section D: peak risk panel
   services/
-    api_client.py              # GET wrappers for the 4 backend endpoints
+    api_client.py              # GET wrappers for the backend endpoints
     config.py                  # API_BASE_URL, timeout, risk colors
   requirements-frontend.txt
   README_FRONTEND.md
@@ -48,7 +48,7 @@ The app opens at `http://localhost:8501` by default.
 ## Backend API
 
 This dashboard calls Anushka's live FastAPI backend directly — there is no
-mock-data mode. Base URL is set in `services/config.py`:
+mock-data mode. Base URL is set in `services/config.py` (default local):
 
 ```python
 API_BASE_URL = "http://127.0.0.1:8000"
@@ -70,6 +70,7 @@ URL. The Render Blueprint in the repository configures this for the dashboard.
 | `GET /metrics/summary` | KPI cards (active model, RMSE, MAPE, MAE) |
 | `GET /forecasts?start=&end=` | actual vs predicted chart |
 | `GET /forecasts/peaks?limit=` | peak risk table |
+| `GET /forecasts/ahead?hours=` | 24h / 7-day zone forecast |
 
 If Anushka changes any field names, the fix is a one-line change in the
 matching `components/*.py` file — don't guess at renamed fields, confirm

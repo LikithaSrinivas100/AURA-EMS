@@ -10,7 +10,7 @@ except ImportError:
 
 app = FastAPI(title="AURA-EMS Backend API")
 
-# Configure CORS — allow all origins for deployment
+# Local Streamlit + hosted frontend (Render). "*" keeps deploy simple for beginners.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
