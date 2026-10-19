@@ -23,19 +23,25 @@ header[data-testid="stHeader"] { background: transparent !important; }
 }
 .aura-topnav {
   position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 999990;
-  background: #FFFFFF; border-bottom: 1px solid #E1E2EB;
+  background: #FFFFFF; border-bottom: 1px solid #E7E5E0; border-top: 3px solid #6366F1;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 1.25rem; font-family: Inter, system-ui, sans-serif;
 }
 .aura-topnav .brand { display: flex; align-items: center; gap: 0.75rem; }
-.aura-topnav .brand strong { font-size: 18px; font-weight: 600; color: #15181E; }
+.aura-topnav .logo {
+  width: 32px; height: 32px; border-radius: 8px; background: #0F766E;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.aura-topnav .divider { width: 1px; height: 20px; background: #D1D5DB; flex-shrink: 0; }
+.aura-topnav .brand strong { font-size: 18px; font-weight: 600; color: #15181E; letter-spacing: -0.02em; }
 .aura-topnav .badge {
   font-size: 11px; font-weight: 500; color: #505F76; background: #F2F3FC;
-  border: 1px solid #BDC9C6; border-radius: 4px; padding: 2px 8px;
+  border: 1px solid #CBD5E1; border-radius: 999px; padding: 3px 10px;
 }
+.aura-topnav .right { display: flex; align-items: center; gap: 0.75rem; }
 .aura-topnav .avatar {
-  width: 32px; height: 32px; border-radius: 999px; background: #005C55;
-  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px;
+  width: 32px; height: 32px; border-radius: 999px; background: #0F766E;
+  color: #fff; display: flex; align-items: center; justify-content: center;
 }
 .aura-card {
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
@@ -73,10 +79,24 @@ hr { border-color: #E7E5E0 !important; opacity: 1 !important; }
 HEADER = """
 <div class="aura-topnav">
   <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#FFFFFF"/>
+      </svg>
+    </div>
+    <span class="divider"></span>
     <strong>AURA-EMS</strong>
     <span class="badge">Alliance University, Bangalore</span>
   </div>
-  <div class="avatar">AU</div>
+  <div class="right">
+    <span class="divider"></span>
+    <div class="avatar" aria-label="Profile">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z" stroke="#FFFFFF" stroke-width="1.8"/>
+        <path d="M4 20.2c1.7-3.2 4.5-4.7 8-4.7s6.3 1.5 8 4.7" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
 </div>
 """
 
