@@ -35,6 +35,7 @@ with st.sidebar:
     end_time = st.time_input("End time", value=default_end.time(), label_visibility="collapsed")
     peaks_limit = st.number_input("Peaks limit", min_value=1, max_value=50, value=DEFAULT_PEAKS_LIMIT)
     show_model_lines = st.checkbox("Show XGB / LGB lines", value=False)
+    forecast_from_end = st.checkbox("Forecast ahead from selected end date", value=True)
     st.button("Refresh", width="stretch")
 
 start_dt = datetime.combine(start_date, start_time).isoformat()
@@ -42,14 +43,18 @@ end_dt = datetime.combine(end_date, end_time).isoformat()
 end_ts, max_ts, min_ts = pd.Timestamp(end_dt), pd.Timestamp(default_end), pd.Timestamp(default_start)
 earliest_as_of = min_ts + pd.Timedelta(hours=24)
 as_of_note = None
-if end_ts > max_ts:
-    as_of = max_ts.isoformat()
-    as_of_note = f"End date is after available history. Forecasting from last observation {max_ts}."
-elif end_ts < earliest_as_of:
-    as_of = earliest_as_of.isoformat()
-    as_of_note = f"End date needs 24h of prior history. Forecasting from {earliest_as_of}."
+as_of = None
+if forecast_from_end:
+    if end_ts > max_ts:
+        as_of = max_ts.isoformat()
+        as_of_note = f"End date is after available history. Forecasting from last observation {max_ts}."
+    elif end_ts < earliest_as_of:
+        as_of = earliest_as_of.isoformat()
+        as_of_note = f"End date needs 24h of prior history. Forecasting from {earliest_as_of}."
+    else:
+        as_of = end_ts.isoformat()
 else:
-    as_of = end_ts.isoformat()
+    as_of_note = "Using last meter observation as forecast anchor (checkbox off)."
 
 health, health_error = api_client.get_health()
 if health_error:
@@ -90,10 +95,9 @@ elif ahead:
     if not ahead_df.empty:
         ahead_df["ts"] = pd.to_datetime(ahead_df["ts"])
         st.markdown(
-            f'<div class="aura-sec-sub">Forecast anchor (End window): {ahead["generated_from"]} · '
-            f'Horizon: {hours}h · Weather: {ahead["weather_source"]} · '
-            f'Exam intervals: {int(ahead_df["is_exam"].sum())}, Vacation: {int(ahead_df["is_vacation"].sum())} '
-            f'<br/><span style="color:#6B7280">Start window only filters history / peaks / carbon — not this ahead chart.</span></div>',
+            f'<div class="aura-sec-sub">From {ahead["generated_from"]} · Horizon: {hours}h · '
+            f'Weather: {ahead["weather_source"]} · '
+            f'Exam intervals: {int(ahead_df["is_exam"].sum())}, Vacation: {int(ahead_df["is_vacation"].sum())}</div>',
             unsafe_allow_html=True,
         )
         render_ahead_chart(ahead_df)
