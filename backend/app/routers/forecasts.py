@@ -149,11 +149,12 @@ def post_predict(body: PredictRequest, zone: str = Query("total")):
 
 @router.get("/forecasts/peaks", response_model=PeaksResponse)
 def get_peaks(
-    limit: int = Query(10, ge=1),
+    limit: int = Query(10, ge=1, le=50),
     start: Optional[str] = Query(None),
     end: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
+    """Top peaks using rank thresholds (Render-safe; no full-series load)."""
     start_dt, end_dt = _parse_ts(start), _parse_ts(end)
     base = db.query(Forecast).filter(Forecast.best_pred_kw.isnot(None))
     if start_dt:
@@ -161,11 +162,15 @@ def get_peaks(
     if end_dt:
         base = base.filter(Forecast.ts <= end_dt)
 
-    all_values = [v[0] for v in base.with_entities(Forecast.best_pred_kw).all()]
-    if not all_values:
+    total = base.count()
+    if total == 0:
         return PeaksResponse(items=[])
 
-    p90, p75 = float(np.percentile(all_values, 90)), float(np.percentile(all_values, 75))
+    ordered = base.order_by(Forecast.best_pred_kw.desc())
+    p90_row = ordered.offset(max(0, int(total * 0.10))).limit(1).first()
+    p75_row = ordered.offset(max(0, int(total * 0.25))).limit(1).first()
+    p90 = float(p90_row.best_pred_kw) if p90_row else 0.0
+    p75 = float(p75_row.best_pred_kw) if p75_row else 0.0
 
     def risk(v: float) -> str:
         if v >= p90:
@@ -174,7 +179,7 @@ def get_peaks(
             return "MEDIUM"
         return "LOW"
 
-    top_rows = base.order_by(Forecast.best_pred_kw.desc()).limit(limit).all()
+    top_rows = ordered.limit(limit).all()
     return PeaksResponse(
         items=[PeakItem(ts=r.ts, best_pred_kw=r.best_pred_kw, risk_level=risk(r.best_pred_kw)) for r in top_rows]
     )
