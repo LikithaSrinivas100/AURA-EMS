@@ -90,8 +90,10 @@ elif ahead:
     if not ahead_df.empty:
         ahead_df["ts"] = pd.to_datetime(ahead_df["ts"])
         st.markdown(
-            f'<div class="aura-sec-sub">From {ahead["generated_from"]} · Weather: {ahead["weather_source"]} · '
-            f'Exam intervals: {int(ahead_df["is_exam"].sum())}, Vacation: {int(ahead_df["is_vacation"].sum())}</div>',
+            f'<div class="aura-sec-sub">Forecast anchor (End window): {ahead["generated_from"]} · '
+            f'Horizon: {hours}h · Weather: {ahead["weather_source"]} · '
+            f'Exam intervals: {int(ahead_df["is_exam"].sum())}, Vacation: {int(ahead_df["is_vacation"].sum())} '
+            f'<br/><span style="color:#6B7280">Start window only filters history / peaks / carbon — not this ahead chart.</span></div>',
             unsafe_allow_html=True,
         )
         render_ahead_chart(ahead_df)
