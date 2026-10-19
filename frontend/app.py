@@ -7,13 +7,15 @@ import streamlit as st
 from components.forecast_chart import render_forecast_chart
 from components.metrics_cards import render_metrics_cards
 from components.peaks_table import render_peaks_table
+from components.theme import apply_theme
 from services import api_client
 from services.config import DEFAULT_PEAKS_LIMIT
 
 st.set_page_config(page_title="AURA-EMS | Campus Energy Demand Forecasting", layout="wide")
+apply_theme()
 
-st.title("AURA-EMS | Campus Energy Demand Forecasting")
-st.caption("Predictive demand forecasting to reduce peak-load risk and energy waste.")
+st.title("AURA-EMS")
+st.caption("Campus energy demand forecasting · Predictive demand forecasting to reduce peak-load risk and energy waste")
 
 data_range, range_error = api_client.get_data_range()
 if data_range and not range_error:
@@ -56,7 +58,9 @@ else:
 
 health, health_error = api_client.get_health()
 if health_error:
-    st.error(f"🔴 {health_error}")
+    st.error(f"Backend unavailable · {health_error}")
+elif health:
+    st.success("Backend online")
 
 st.divider()
 metrics, metrics_error = api_client.get_metrics()
@@ -99,7 +103,9 @@ elif ahead:
             f"Exam intervals: {int(ahead_df['is_exam'].sum())} | Vacation intervals: {int(ahead_df['is_vacation'].sum())}"
         )
         zone_cols = {"total_kw": "Total campus", "academic_kw": "Academic blocks", "hostel_kw": "Hostels"}
-        st.line_chart(ahead_df.set_index("ts")[list(zone_cols)].rename(columns=zone_cols))
+        chart_df = ahead_df.set_index("ts")[list(zone_cols)].rename(columns=zone_cols)
+        # Keep Streamlit line_chart for interactivity; theme CSS styles the page chrome
+        st.line_chart(chart_df, color=["#15181E", "#0F766E", "#64748B"])
         high = ahead_df[ahead_df["risk_level"] == "HIGH"]
         if high.empty:
             st.success(f"No HIGH peak-risk intervals expected in the {horizon.lower()}.")
