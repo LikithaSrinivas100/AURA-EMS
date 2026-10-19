@@ -33,19 +33,18 @@ for _k, _v in (("aura_start", min_d), ("aura_end", max_d)):
         st.session_state[_k] = _v
 with st.sidebar:
     st.markdown("### Filters")
-    st.caption(
-        f"Meter history: {min_d} → {max_d}. "
-        "Start/End filter history, peaks, carbon. "
-        "Ahead = forward forecast (max 7 days), not the full Start→End history chart."
-    )
+    st.caption(f"Allowed dates: **{min_d}** → **{max_d}** (scroll sidebar for End window + times)")
+    st.markdown("**1. Start window**")
     start_date = st.date_input(
-        "Start window", min_value=min_d, max_value=max_d, key="aura_start"
+        "Start date", min_value=min_d, max_value=max_d, key="aura_start"
     )
-    start_time = st.time_input("Start time", value=default_start.time(), label_visibility="collapsed")
+    start_time = st.time_input("Start time", value=default_start.time())
+    st.markdown("**2. End window**")
     end_date = st.date_input(
-        "End window", min_value=min_d, max_value=max_d, key="aura_end"
+        "End date", min_value=min_d, max_value=max_d, key="aura_end"
     )
-    end_time = st.time_input("End time", value=default_end.time(), label_visibility="collapsed")
+    end_time = st.time_input("End time", value=default_end.time())
+    st.markdown("**3. Other**")
     peaks_limit = st.number_input("Peaks limit", min_value=1, max_value=50, value=DEFAULT_PEAKS_LIMIT)
     show_model_lines = st.checkbox("Show XGB / LGB lines", value=False)
     forecast_from_end = st.checkbox("Forecast ahead from selected end date", value=True)
