@@ -35,7 +35,8 @@ with st.sidebar:
     st.markdown("### Filters")
     st.caption(
         f"Meter history: {min_d} → {max_d}. "
-        "Start/End → history, peaks, carbon · End → forecast ahead"
+        "Start/End filter history, peaks, carbon. "
+        "Ahead = forward forecast (max 7 days), not the full Start→End history chart."
     )
     start_date = st.date_input(
         "Start window", min_value=min_d, max_value=max_d, key="aura_start"
@@ -60,18 +61,8 @@ end_ts = min(max(end_ts, min_ts), max_ts)
 if end_ts < start_ts:
     start_ts, end_ts = end_ts, start_ts
 earliest_as_of = min_ts + pd.Timedelta(hours=24)
-window_hours = max(1, min(168, int((end_ts - start_ts).total_seconds() // 3600) or 1))
-as_of_note = None
-# Ahead chart: Start→End sets length; checkbox picks Start vs End as forecast anchor.
-anchor_ts = end_ts if forecast_from_end else start_ts
-if anchor_ts < earliest_as_of:
-    as_of = earliest_as_of.isoformat()
-    as_of_note = f"Anchor needs ≥24h prior history. Forecasting from {earliest_as_of}."
-elif anchor_ts > max_ts:
-    as_of = max_ts.isoformat()
-    as_of_note = f"Anchor after history. Forecasting from last observation {max_ts}."
-else:
-    as_of = anchor_ts.isoformat()
+raw_window_hours = max(1, int((end_ts - start_ts).total_seconds() // 3600) or 1)
+window_hours = min(168, raw_window_hours)
 
 health, health_error = api_client.get_health()
 if health_error:
@@ -88,7 +79,11 @@ elif metrics:
     c4.markdown(kpi_html("MAE", f"{metrics.get('mae', 0):.2f}", "kW", "Mean absolute error"), unsafe_allow_html=True)
 
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Actual vs predicted demand</div>', unsafe_allow_html=True)
-forecasts, forecasts_error = api_client.get_forecasts(start_dt, end_dt)
+st.markdown(
+    f'<div class="aura-sec-sub">Full Start→End history: {start_ts.isoformat()} → {end_ts.isoformat()}</div>',
+    unsafe_allow_html=True,
+)
+forecasts, forecasts_error = api_client.get_forecasts(start_ts.isoformat(), end_ts.isoformat())
 if forecasts_error:
     st.markdown(f'<div class="aura-warn">{forecasts_error}</div>', unsafe_allow_html=True)
 elif forecasts:
@@ -100,20 +95,45 @@ elif forecasts:
 st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Demand forecast ahead</div>', unsafe_allow_html=True)
-if as_of_note:
-    st.info(as_of_note)
 horizon = st.radio(
     "Horizon",
     ["Match Start→End window", "Next 24 hours", "Next 7 days"],
     horizontal=True,
     label_visibility="collapsed",
 )
+# Match = forecast forward from Start for window length (capped 7d).
+# 24h/7d presets = from End (checkbox) or last obs.
 if horizon == "Match Start→End window":
     hours = window_hours
+    anchor_ts = start_ts
+    anchor_lbl = "Start"
+    if raw_window_hours > 168:
+        st.info(
+            f"Selected window is ~{raw_window_hours // 24} days. "
+            f"Ahead forecast max is 7 days — chart starts at Start ({start_ts.date()}) for 168h. "
+            "Use Actual vs predicted above for the full Jun–Sep history."
+        )
 elif horizon == "Next 24 hours":
     hours = 24
+    anchor_ts = end_ts if forecast_from_end else max_ts
+    anchor_lbl = "End" if forecast_from_end else "last observation"
 else:
     hours = 168
+    anchor_ts = end_ts if forecast_from_end else max_ts
+    anchor_lbl = "End" if forecast_from_end else "last observation"
+
+as_of_note = None
+if anchor_ts < earliest_as_of:
+    as_of = earliest_as_of.isoformat()
+    as_of_note = f"Anchor needs ≥24h prior history. Forecasting from {earliest_as_of}."
+elif anchor_ts > max_ts:
+    as_of = max_ts.isoformat()
+    as_of_note = f"Anchor after history. Forecasting from last observation {max_ts}."
+else:
+    as_of = anchor_ts.isoformat()
+if as_of_note:
+    st.info(as_of_note)
+
 ahead, ahead_error = api_client.get_forecast_ahead(hours, as_of=as_of)
 if ahead_error:
     st.markdown(f'<div class="aura-warn">{ahead_error}</div>', unsafe_allow_html=True)
@@ -121,10 +141,9 @@ elif ahead:
     ahead_df = pd.DataFrame(ahead.get("items", []))
     if not ahead_df.empty:
         ahead_df["ts"] = pd.to_datetime(ahead_df["ts"])
-        anchor_lbl = "End" if forecast_from_end else "Start"
         st.markdown(
             f'<div class="aura-sec-sub">'
-            f'Selected: {start_ts.isoformat()} → {end_ts.isoformat()} · '
+            f'Filters: {start_ts.isoformat()} → {end_ts.isoformat()} · '
             f'Forecast from ({anchor_lbl}): {ahead["generated_from"]} · Horizon: {hours}h · '
             f'Weather: {ahead["weather_source"]} · '
             f'Exam intervals (in next {hours}h): {int(ahead_df["is_exam"].sum())}, '
@@ -145,7 +164,9 @@ elif ahead:
 st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown('<div class="aura-sec-title">Green Skills: carbon and cost impact</div>', unsafe_allow_html=True)
-carbon, carbon_error = api_client.get_carbon(hours, as_of=as_of, start=start_dt, end=end_dt)
+carbon, carbon_error = api_client.get_carbon(
+    hours, as_of=as_of, start=start_ts.isoformat(), end=end_ts.isoformat()
+)
 if carbon_error:
     st.markdown(f'<div class="aura-warn">{carbon_error}</div>', unsafe_allow_html=True)
 elif carbon:
@@ -160,7 +181,14 @@ elif carbon:
         st.caption(carbon.get("notes", ""))
 
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Peak risk windows</div>', unsafe_allow_html=True)
-peaks, peaks_error = api_client.get_peaks(limit=int(peaks_limit), start=start_dt, end=end_dt)
+st.markdown(
+    f'<div class="aura-sec-sub">Top {int(peaks_limit)} peaks by demand inside '
+    f'{start_ts.isoformat()} → {end_ts.isoformat()} (highest kW first, not one row per month)</div>',
+    unsafe_allow_html=True,
+)
+peaks, peaks_error = api_client.get_peaks(
+    limit=int(peaks_limit), start=start_ts.isoformat(), end=end_ts.isoformat()
+)
 if peaks_error:
     st.markdown(f'<div class="aura-warn">{peaks_error}</div>', unsafe_allow_html=True)
 elif peaks:
