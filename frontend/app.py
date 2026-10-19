@@ -109,9 +109,13 @@ elif ahead:
     if not ahead_df.empty:
         ahead_df["ts"] = pd.to_datetime(ahead_df["ts"])
         st.markdown(
-            f'<div class="aura-sec-sub">From {ahead["generated_from"]} · Horizon: {hours}h · '
+            f'<div class="aura-sec-sub">'
+            f'Selected: {start_dt} → {end_dt} · '
+            f'Forecast from (End): {ahead["generated_from"]} · Horizon: {hours}h · '
             f'Weather: {ahead["weather_source"]} · '
-            f'Exam intervals: {int(ahead_df["is_exam"].sum())}, Vacation: {int(ahead_df["is_vacation"].sum())}</div>',
+            f'Exam intervals (in next {hours}h): {int(ahead_df["is_exam"].sum())}, '
+            f'Vacation: {int(ahead_df["is_vacation"].sum())}'
+            f'</div>',
             unsafe_allow_html=True,
         )
         render_ahead_chart(ahead_df)
