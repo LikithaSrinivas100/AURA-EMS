@@ -26,9 +26,8 @@ else:
 with st.sidebar:
     st.header("Filters")
     st.caption(
-        "Start/End update Actual vs Predicted + Peaks. "
-        "Demand Forecast Ahead uses the last history point in the dataset "
-        "(or your end date if the checkbox below is on)."
+        "Start/End → Actual vs Predicted, Peaks, Carbon. "
+        "End date → Demand Forecast Ahead starts from that moment (clamped to available history)."
     )
     start_date = st.date_input("Start date", value=default_start.date())
     start_time = st.time_input("Start time", value=default_start.time())
@@ -36,29 +35,24 @@ with st.sidebar:
     end_time = st.time_input("End time", value=default_end.time())
     peaks_limit = st.number_input("Peaks limit", min_value=1, max_value=50, value=DEFAULT_PEAKS_LIMIT)
     show_model_lines = st.checkbox("Show XGB / LGB lines", value=False)
-    forecast_from_end = st.checkbox("Forecast ahead from selected end date", value=True)
     st.button("Refresh", width="stretch")
 
 start_dt = datetime.combine(start_date, start_time).isoformat()
 end_dt = datetime.combine(end_date, end_time).isoformat()
-# Clamp as_of into available history — dates after the last observation cannot invent past load
-as_of = None
+# Always anchor ahead forecast on End date, clamped into history (needs ≥24h prior)
+end_ts = pd.Timestamp(end_dt)
+max_ts = pd.Timestamp(default_end)
+min_ts = pd.Timestamp(default_start)
+earliest_as_of = min_ts + pd.Timedelta(hours=24)
 as_of_note = None
-if forecast_from_end:
-    end_ts = pd.Timestamp(end_dt)
-    max_ts = pd.Timestamp(default_end)
-    min_ts = pd.Timestamp(default_start)
-    if end_ts > max_ts:
-        as_of = max_ts.isoformat()
-        as_of_note = (
-            f"Selected end date is after available history. "
-            f"Forecasting from last observation {max_ts} (dataset ends there)."
-        )
-    elif end_ts < min_ts:
-        as_of = min_ts.isoformat()
-        as_of_note = f"Selected end date is before available history. Using {min_ts}."
-    else:
-        as_of = end_ts.isoformat()
+if end_ts > max_ts:
+    as_of = max_ts.isoformat()
+    as_of_note = f"End date is after available history. Forecasting from last observation {max_ts}."
+elif end_ts < earliest_as_of:
+    as_of = earliest_as_of.isoformat()
+    as_of_note = f"End date needs 24h of prior history. Forecasting from {earliest_as_of}."
+else:
+    as_of = end_ts.isoformat()
 
 health, health_error = api_client.get_health()
 if health_error:
@@ -86,8 +80,8 @@ elif forecasts:
 st.divider()
 st.subheader("Demand Forecast Ahead")
 st.caption(
-    "This is a future forecast from the last known meter history — not the historical Actual vs Predicted chart. "
-    "It does not use the academic calendar for the ‘last observation’ timestamp."
+    "Forecast starts right after your sidebar End date (24h or 7 days forward). "
+    "Change End date within available history to jump the chart."
 )
 if as_of_note:
     st.info(as_of_note)
