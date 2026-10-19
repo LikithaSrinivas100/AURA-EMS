@@ -52,4 +52,4 @@ def render_forecast_chart(items: list, show_model_lines: bool = False) -> None:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         height=420,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
