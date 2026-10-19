@@ -33,11 +33,6 @@ header[data-testid="stHeader"] { background: transparent !important; }
   font-size: 11px; font-weight: 500; color: #505F76; background: #F2F3FC;
   border: 1px solid #BDC9C6; border-radius: 4px; padding: 2px 8px;
 }
-.aura-topnav nav { display: flex; gap: 0.25rem; align-items: center; }
-.aura-topnav nav span {
-  font-size: 13px; color: #3E4947; padding: 6px 10px; border-radius: 4px;
-}
-.aura-topnav nav span.active { background: #ECEDF6; color: #15181E; font-weight: 600; }
 .aura-topnav .avatar {
   width: 32px; height: 32px; border-radius: 999px; background: #005C55;
   color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px;
@@ -81,12 +76,6 @@ HEADER = """
     <strong>AURA-EMS</strong>
     <span class="badge">Alliance University, Bangalore</span>
   </div>
-  <nav>
-    <span class="active">Demand Forecasting</span>
-    <span>Peak Shaving</span>
-    <span>Substation Telemetry</span>
-    <span>Tariff Modeling</span>
-  </nav>
   <div class="avatar">AU</div>
 </div>
 """
