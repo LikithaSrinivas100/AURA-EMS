@@ -47,7 +47,15 @@ def get_forecast_ahead(hours: int = 24, as_of: Optional[str] = None) -> Tuple[Op
     params = {"hours": hours}
     if as_of:
         params["as_of"] = as_of
-    return _get("/forecasts/ahead", params=params)
+    data, err = _get("/forecasts/ahead", params=params)
+    # One retry at 24h if a long horizon times out on cold Render
+    if err and "timed out" in err.lower() and hours > 24:
+        params["hours"] = 24
+        data, err2 = _get("/forecasts/ahead", params=params)
+        if data is not None:
+            return data, None
+        return None, err2 or err
+    return data, err
 
 
 def get_carbon(

@@ -133,9 +133,13 @@ else:
 if as_of_note:
     st.info(as_of_note)
 
-ahead, ahead_error = api_client.get_forecast_ahead(hours, as_of=as_of)
+with st.spinner("Computing demand forecast ahead…"):
+    ahead, ahead_error = api_client.get_forecast_ahead(hours, as_of=as_of)
 if ahead_error:
-    st.markdown(f'<div class="aura-warn">{ahead_error}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="aura-warn">{ahead_error} — try Next 24 hours, or Refresh after the backend wakes up.</div>',
+        unsafe_allow_html=True,
+    )
 elif ahead:
     ahead_df = pd.DataFrame(ahead.get("items", []))
     if not ahead_df.empty:
