@@ -11,9 +11,33 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stText, button, input, label {
 }
 .stApp { background: #F5F4F0 !important; color: #15181E !important; }
 
-/* Hide Streamlit chrome that fights our top bar */
-header[data-testid="stHeader"] { display: none !important; }
+/* Keep Streamlit header for sidebar expand control, but visually hide chrome */
+header[data-testid="stHeader"] {
+  background: transparent !important;
+  height: 0 !important;
+  min-height: 0 !important;
+}
 #MainMenu, footer { visibility: hidden; }
+
+/* Always show the collapsed-sidebar reopen control */
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 1000002 !important;
+  position: fixed !important;
+  top: 64px !important;
+  left: 10px !important;
+}
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="collapsedControl"] button {
+  background: #FFFFFF !important;
+  border: 1px solid #E7E5E0 !important;
+  border-radius: 6px !important;
+  color: #15181E !important;
+  box-shadow: none !important;
+}
 
 /* Fixed top bar ABOVE sidebar */
 .aura-topnav {
@@ -25,6 +49,12 @@ header[data-testid="stHeader"] { display: none !important; }
   padding: 0 1.25rem;
   box-sizing: border-box;
 }
+.aura-topnav .menu-btn {
+  width: 32px; height: 32px; border-radius: 6px; border: 1px solid #E7E5E0;
+  background: #FFFFFF; color: #15181E; cursor: pointer; font-size: 18px;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.aura-topnav .menu-btn:hover { background: #F5F4F0; border-color: #D6D3CD; }
 .aura-topnav .brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
 .aura-topnav .logo {
   width: 32px; height: 32px; border-radius: 8px; background: #0F766E;
@@ -118,6 +148,7 @@ hr { border-color: #E7E5E0 !important; opacity: 1 !important; }
 HEADER = """
 <div class="aura-topnav">
   <div class="brand">
+    <button type="button" class="menu-btn" id="aura-sidebar-toggle" title="Open filters sidebar">☰</button>
     <div class="logo">⚡</div>
     <span class="divider"></span>
     <span class="brand-name">AURA-EMS</span>
@@ -131,9 +162,51 @@ HEADER = """
 """
 
 
+_TOGGLE_JS = """
+<script>
+(function () {
+  function reopenSidebar() {
+    var selectors = [
+      '[data-testid="stSidebarCollapsedControl"] button',
+      '[data-testid="collapsedControl"] button',
+      '[data-testid="stExpandSidebarButton"]',
+      'button[kind="headerNoPadding"]',
+      'button[kind="header"]'
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var btn = document.querySelector(selectors[i]);
+      if (btn) { btn.click(); return; }
+    }
+  }
+  function bind() {
+    var t = document.getElementById('aura-sidebar-toggle');
+    if (t && !t.dataset.bound) {
+      t.dataset.bound = '1';
+      t.addEventListener('click', reopenSidebar);
+    }
+    var el = document.querySelector('[data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"]');
+    if (el) {
+      el.style.display = 'flex';
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
+      el.style.zIndex = '1000002';
+    }
+  }
+  bind();
+  new MutationObserver(bind).observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+"""
+
+
 def apply_theme() -> None:
     st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
     st.markdown(HEADER, unsafe_allow_html=True)
+    try:
+        import streamlit.components.v1 as components
+        components.html(_TOGGLE_JS, height=0)
+    except Exception:
+        pass
 
 
 def kpi_html(label: str, value: str, unit: str = "", sub: str = "", good: bool = False) -> str:
