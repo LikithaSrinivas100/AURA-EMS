@@ -52,23 +52,26 @@ with st.sidebar:
 
 start_dt = datetime.combine(start_date, start_time).isoformat()
 end_dt = datetime.combine(end_date, end_time).isoformat()
-end_ts, max_ts, min_ts = pd.Timestamp(end_dt), pd.Timestamp(default_end), pd.Timestamp(default_start)
-if end_ts < min_ts:
-    end_ts = min_ts
-if end_ts > max_ts:
-    end_ts = max_ts
+start_ts = pd.Timestamp(start_dt)
+end_ts = pd.Timestamp(end_dt)
+max_ts, min_ts = pd.Timestamp(default_end), pd.Timestamp(default_start)
+start_ts = min(max(start_ts, min_ts), max_ts)
+end_ts = min(max(end_ts, min_ts), max_ts)
+if end_ts < start_ts:
+    start_ts, end_ts = end_ts, start_ts
 earliest_as_of = min_ts + pd.Timedelta(hours=24)
+window_hours = max(1, min(168, int((end_ts - start_ts).total_seconds() // 3600) or 1))
 as_of_note = None
-as_of = None
-if forecast_from_end:
-    if end_ts < earliest_as_of:
-        as_of = earliest_as_of.isoformat()
-        as_of_note = f"End needs ≥24h prior history. Forecasting from {earliest_as_of}."
-    else:
-        as_of = end_ts.isoformat()
-else:
+# Ahead chart: Start→End sets length; checkbox picks Start vs End as forecast anchor.
+anchor_ts = end_ts if forecast_from_end else start_ts
+if anchor_ts < earliest_as_of:
+    as_of = earliest_as_of.isoformat()
+    as_of_note = f"Anchor needs ≥24h prior history. Forecasting from {earliest_as_of}."
+elif anchor_ts > max_ts:
     as_of = max_ts.isoformat()
-    as_of_note = f"Checkbox off — forecasting from last observation {max_ts}."
+    as_of_note = f"Anchor after history. Forecasting from last observation {max_ts}."
+else:
+    as_of = anchor_ts.isoformat()
 
 health, health_error = api_client.get_health()
 if health_error:
@@ -99,8 +102,18 @@ st.markdown("</div>", unsafe_allow_html=True)
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Demand forecast ahead</div>', unsafe_allow_html=True)
 if as_of_note:
     st.info(as_of_note)
-horizon = st.radio("Horizon", ["Next 24 hours", "Next 7 days"], horizontal=True, label_visibility="collapsed")
-hours = 24 if horizon == "Next 24 hours" else 168
+horizon = st.radio(
+    "Horizon",
+    ["Match Start→End window", "Next 24 hours", "Next 7 days"],
+    horizontal=True,
+    label_visibility="collapsed",
+)
+if horizon == "Match Start→End window":
+    hours = window_hours
+elif horizon == "Next 24 hours":
+    hours = 24
+else:
+    hours = 168
 ahead, ahead_error = api_client.get_forecast_ahead(hours, as_of=as_of)
 if ahead_error:
     st.markdown(f'<div class="aura-warn">{ahead_error}</div>', unsafe_allow_html=True)
@@ -108,10 +121,11 @@ elif ahead:
     ahead_df = pd.DataFrame(ahead.get("items", []))
     if not ahead_df.empty:
         ahead_df["ts"] = pd.to_datetime(ahead_df["ts"])
+        anchor_lbl = "End" if forecast_from_end else "Start"
         st.markdown(
             f'<div class="aura-sec-sub">'
-            f'Selected: {start_dt} → {end_dt} · '
-            f'Forecast from (End): {ahead["generated_from"]} · Horizon: {hours}h · '
+            f'Selected: {start_ts.isoformat()} → {end_ts.isoformat()} · '
+            f'Forecast from ({anchor_lbl}): {ahead["generated_from"]} · Horizon: {hours}h · '
             f'Weather: {ahead["weather_source"]} · '
             f'Exam intervals (in next {hours}h): {int(ahead_df["is_exam"].sum())}, '
             f'Vacation: {int(ahead_df["is_vacation"].sum())}'
