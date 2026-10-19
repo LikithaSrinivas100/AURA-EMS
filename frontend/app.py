@@ -26,12 +26,24 @@ else:
     default_start = datetime(2025, 9, 2)
     default_end = datetime(2026, 9, 1)
 
+min_d, max_d = default_start.date(), default_end.date()
+for _k, _v in (("aura_start", min_d), ("aura_end", max_d)):
+    cur = st.session_state.get(_k)
+    if cur is None or cur < min_d or cur > max_d:
+        st.session_state[_k] = _v
 with st.sidebar:
     st.markdown("### Filters")
-    st.caption("Start/End → history, peaks, carbon · End → forecast ahead")
-    start_date = st.date_input("Start window", value=default_start.date())
+    st.caption(
+        f"Meter history: {min_d} → {max_d}. "
+        "Start/End → history, peaks, carbon · End → forecast ahead"
+    )
+    start_date = st.date_input(
+        "Start window", min_value=min_d, max_value=max_d, key="aura_start"
+    )
     start_time = st.time_input("Start time", value=default_start.time(), label_visibility="collapsed")
-    end_date = st.date_input("End window", value=default_end.date())
+    end_date = st.date_input(
+        "End window", min_value=min_d, max_value=max_d, key="aura_end"
+    )
     end_time = st.time_input("End time", value=default_end.time(), label_visibility="collapsed")
     peaks_limit = st.number_input("Peaks limit", min_value=1, max_value=50, value=DEFAULT_PEAKS_LIMIT)
     show_model_lines = st.checkbox("Show XGB / LGB lines", value=False)
@@ -41,20 +53,22 @@ with st.sidebar:
 start_dt = datetime.combine(start_date, start_time).isoformat()
 end_dt = datetime.combine(end_date, end_time).isoformat()
 end_ts, max_ts, min_ts = pd.Timestamp(end_dt), pd.Timestamp(default_end), pd.Timestamp(default_start)
+if end_ts < min_ts:
+    end_ts = min_ts
+if end_ts > max_ts:
+    end_ts = max_ts
 earliest_as_of = min_ts + pd.Timedelta(hours=24)
 as_of_note = None
 as_of = None
 if forecast_from_end:
-    if end_ts > max_ts:
-        as_of = max_ts.isoformat()
-        as_of_note = f"End date is after available history. Forecasting from last observation {max_ts}."
-    elif end_ts < earliest_as_of:
+    if end_ts < earliest_as_of:
         as_of = earliest_as_of.isoformat()
-        as_of_note = f"End date needs 24h of prior history. Forecasting from {earliest_as_of}."
+        as_of_note = f"End needs ≥24h prior history. Forecasting from {earliest_as_of}."
     else:
         as_of = end_ts.isoformat()
 else:
-    as_of_note = "Using last meter observation as forecast anchor (checkbox off)."
+    as_of = max_ts.isoformat()
+    as_of_note = f"Checkbox off — forecasting from last observation {max_ts}."
 
 health, health_error = api_client.get_health()
 if health_error:
