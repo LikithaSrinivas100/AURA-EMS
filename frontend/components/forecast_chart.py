@@ -8,7 +8,7 @@ BEST = "#0F766E"
 XGB = "#64748B"
 LGB = "#A8A29E"
 GRID = "#F0EFEA"
-MUTED = "#6B7280"
+MUTED = "#374151"
 
 
 def render_forecast_chart(items: list, show_model_lines: bool = False) -> None:

@@ -3,7 +3,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 TOTAL, ACADEMIC, HOSTEL = "#0F766E", "#64748B", "#A8A29E"
-MUTED, GRID = "#6B7280", "#F0EFEA"
+MUTED, GRID = "#374151", "#F0EFEA"
 
 
 def render_ahead_chart(ahead_df) -> None:

@@ -35,6 +35,7 @@ def render_peaks_table(items: list) -> None:
         unsafe_allow_html=True,
     )
     if (df["risk_level"] == "HIGH").any():
-        st.warning(
-            "Facilities action: stagger HVAC / defer non-critical loads during this window."
+        st.markdown(
+            '<div class="aura-action">Facilities action: stagger HVAC / defer non-critical loads during this window.</div>',
+            unsafe_allow_html=True,
         )

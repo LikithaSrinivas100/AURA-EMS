@@ -1,93 +1,148 @@
-"""Calculated Caliber shell — matches new_design/code.html chrome inside Streamlit."""
+"""Calculated Caliber shell — readable contrast; sidebar stays open."""
 
 import streamlit as st
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-html, body, [class*="css"], .stApp, .stMarkdown, .stText, .stMetric, button, input, label {
+
+html, body, [class*="css"], .stApp, .stMarkdown, .stText, button, input, label {
   font-family: Inter, system-ui, sans-serif !important;
   font-variant-numeric: tabular-nums;
 }
 .stApp { background: #F5F4F0 !important; color: #15181E !important; }
-header[data-testid="stHeader"] { background: transparent !important; }
-[data-testid="stSidebar"] {
+
+header[data-testid="stHeader"] {
+  background: transparent !important;
+  height: 0 !important;
+  min-height: 0 !important;
+}
+#MainMenu, footer { visibility: hidden; }
+
+section[data-testid="stSidebar"] button[kind="header"],
+section[data-testid="stSidebar"] button[kind="headerNoPadding"],
+section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"],
+section[data-testid="stSidebar"] [data-testid="baseButton-header"],
+section[data-testid="stSidebar"] [data-testid="baseButton-headerNoPadding"] {
+  display: none !important;
+}
+
+.aura-topnav {
+  position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 1000000;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E7E5E0;
+  border-top: 3px solid #6366F1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1.25rem; box-sizing: border-box;
+}
+.aura-topnav .brand { display: flex; align-items: center; gap: 0.75rem; }
+.aura-topnav .logo {
+  width: 32px; height: 32px; border-radius: 8px; background: #0F766E;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 16px; font-weight: 700;
+}
+.aura-topnav .divider { width: 1px; height: 20px; background: #D1D5DB; }
+.aura-topnav .brand-name { font-size: 18px; font-weight: 600; color: #15181E; }
+.aura-topnav .badge {
+  font-size: 11px; font-weight: 500; color: #374151; background: #F2F3FC;
+  border: 1px solid #CBD5E1; border-radius: 999px; padding: 3px 10px;
+}
+.aura-topnav .right { display: flex; align-items: center; gap: 0.75rem; }
+.aura-topnav .avatar {
+  width: 32px; height: 32px; border-radius: 999px; background: #0F766E;
+  color: #fff; display: inline-flex; align-items: center; justify-content: center;
+}
+
+section[data-testid="stSidebar"] {
+  top: 56px !important; height: calc(100vh - 56px) !important;
   background: #FFFFFF !important;
   border-right: 1px solid #E7E5E0 !important;
-  min-width: 260px !important;
+  transform: none !important;
+  margin-left: 0 !important;
 }
-[data-testid="stSidebar"] > div:first-child { padding-top: 0.5rem !important; }
+section[data-testid="stSidebar"] > div { background: #FFFFFF !important; }
+section[data-testid="stSidebar"] *,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+  color: #15181E !important;
+}
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] { color: #4B5563 !important; }
+section[data-testid="stSidebar"] input,
+section[data-testid="stSidebar"] [data-baseweb="input"] input,
+section[data-testid="stSidebar"] [data-baseweb="select"] > div {
+  background: #FFFFFF !important; color: #15181E !important;
+  border: 1px solid #E7E5E0 !important; border-radius: 6px !important;
+}
+
 .block-container {
-  padding-top: 5.5rem !important;
+  padding-top: 4.25rem !important;
   padding-bottom: 2rem !important;
   max-width: 1100px !important;
 }
-.aura-topnav {
-  position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 999990;
-  background: #FFFFFF; border-bottom: 1px solid #E1E2EB;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 1.25rem; font-family: Inter, system-ui, sans-serif;
+
+div[role="radiogroup"] label,
+div[role="radiogroup"] p,
+.stRadio label, .stCheckbox label, .stCheckbox span {
+  color: #15181E !important;
+  opacity: 1 !important;
 }
-.aura-topnav .brand { display: flex; align-items: center; gap: 0.75rem; }
-.aura-topnav .brand strong { font-size: 18px; font-weight: 600; color: #15181E; }
-.aura-topnav .badge {
-  font-size: 11px; font-weight: 500; color: #505F76; background: #F2F3FC;
-  border: 1px solid #BDC9C6; border-radius: 4px; padding: 2px 8px;
-}
-.aura-topnav nav { display: flex; gap: 0.25rem; align-items: center; }
-.aura-topnav nav span {
-  font-size: 13px; color: #3E4947; padding: 6px 10px; border-radius: 4px;
-}
-.aura-topnav nav span.active { background: #ECEDF6; color: #15181E; font-weight: 600; }
-.aura-topnav .avatar {
-  width: 32px; height: 32px; border-radius: 999px; background: #005C55;
-  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px;
-}
+
 .aura-card {
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
-  padding: 1.25rem 1.35rem; margin-bottom: 1rem; box-shadow: none;
+  padding: 1.25rem 1.35rem; margin-bottom: 1rem;
 }
 .aura-kpi {
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
   padding: 1.15rem 1.2rem; height: 100%;
 }
 .aura-kpi .lbl {
-  font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6B7280;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #4B5563;
 }
 .aura-kpi .val {
-  margin-top: 0.65rem; font-size: 28px; font-weight: 600; color: #15181E; letter-spacing: -0.02em;
+  margin-top: 0.65rem; font-size: 28px; font-weight: 600; color: #15181E;
 }
-.aura-kpi .unit { font-size: 14px; color: #6B7280; margin-left: 4px; font-weight: 400; }
-.aura-kpi .sub { margin-top: 0.35rem; font-size: 12px; color: #6B7280; }
+.aura-kpi .unit { font-size: 14px; color: #4B5563; margin-left: 4px; }
+.aura-kpi .sub { margin-top: 0.35rem; font-size: 12px; color: #4B5563; }
 .aura-kpi .sub.good { color: #15803D; font-weight: 500; }
-.aura-status-ok { color: #15803D; font-size: 13px; font-weight: 500; }
-.aura-status-bad {
-  color: #B91C1C; background: #FEF2F2; border: 1px solid rgba(185,28,28,.4);
-  border-radius: 6px; padding: 6px 10px; font-size: 12px; display: inline-block;
+.aura-sec-title { font-size: 16px; font-weight: 600; color: #15181E; margin: 0 0 0.5rem 0; }
+.aura-sec-sub { font-size: 12px; color: #374151; margin-bottom: 0.75rem; }
+.aura-warn {
+  background: #FEF2F2; border-left: 4px solid #B91C1C; color: #991B1B;
+  padding: 12px 14px; border-radius: 0 6px 6px 0; font-size: 13px; font-weight: 500; margin: 8px 0;
 }
-.aura-sec-title { font-size: 16px; font-weight: 600; color: #15181E; margin: 0 0 0.35rem 0; }
-.aura-sec-sub { font-size: 12px; color: #6B7280; margin-bottom: 0.75rem; }
+.aura-ok {
+  background: #F0FDF4; border-left: 4px solid #15803D; color: #166534;
+  padding: 12px 14px; border-radius: 0 6px 6px 0; font-size: 13px; font-weight: 500; margin: 8px 0;
+}
+.aura-action {
+  background: #FFFBEB; border: 1px solid #F59E0B; color: #92400E;
+  padding: 12px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; margin-top: 10px;
+}
 .stButton > button {
   background: #0F766E !important; color: #fff !important; border: none !important;
   border-radius: 6px !important; font-weight: 500 !important; height: 36px !important;
 }
-.stButton > button:hover { background: #0D655E !important; }
+.stButton > button:hover { background: #0D655E !important; color: #fff !important; }
 div[data-testid="stMetric"] { display: none !important; }
-hr { border-color: #E7E5E0 !important; opacity: 1 !important; }
+hr { border-color: #E7E5E0 !important; }
+[data-testid="stCaptionContainer"] { color: #374151 !important; }
 """
 
 HEADER = """
 <div class="aura-topnav">
   <div class="brand">
-    <strong>AURA-EMS</strong>
+    <div class="logo">⚡</div>
+    <span class="divider"></span>
+    <span class="brand-name">AURA-EMS</span>
     <span class="badge">Alliance University, Bangalore</span>
   </div>
-  <nav>
-    <span class="active">Demand Forecasting</span>
-    <span>Peak Shaving</span>
-    <span>Substation Telemetry</span>
-    <span>Tariff Modeling</span>
-  </nav>
-  <div class="avatar">AU</div>
+  <div class="right">
+    <span class="divider"></span>
+    <div class="avatar">👤</div>
+  </div>
 </div>
 """
 
