@@ -21,19 +21,24 @@ def fetch_live_weather():
         f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}"
         f"&current=temperature_2m&hourly=temperature_2m&timezone=Asia%2FKolkata&forecast_days=2"
     )
-    with urllib.request.urlopen(url, timeout=8) as resp:
+    req = urllib.request.Request(url, headers={"User-Agent": "AURA-EMS/1.0"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
         data = json.load(resp)
     current = float(data["current"]["temperature_2m"])
-    hourly = pd.Series(data["hourly"]["temperature_2m"], index=pd.to_datetime(data["hourly"]["time"]), dtype=float).dropna()
-    hourly.index = hourly.index.tz_localize(None)
+    idx = pd.to_datetime(data["hourly"]["time"])
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_convert("Asia/Kolkata").tz_localize(None)
+    hourly = pd.Series(data["hourly"]["temperature_2m"], index=idx, dtype=float).dropna()
     return current, hourly.resample("15min").interpolate()
 
 
 def today_peak() -> dict:
     models, feature_columns, history, calendar = _assets()
+    hist = history.copy()
+    hist.index = pd.to_datetime(hist.index)
     now = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None).floor("15min")
     future = pd.date_range(now, periods=96, freq="15min")
-    last_temp = float(history["Temperature_C"].iloc[-1])
+    last_temp = float(hist["Temperature_C"].iloc[-1])
     try:
         live_now, live = fetch_live_weather()
     except Exception:
@@ -44,9 +49,9 @@ def today_peak() -> dict:
     for ts in future:
         if live is not None:
             val = live.asof(ts)
-            temp = float(val) if pd.notna(val) else live_now
+            temp = float(val) if pd.notna(val) else float(live_now)
         else:
-            temp = live_now
+            temp = float(live_now)
         vac, exam = day_flags[ts.normalize()]
         context.append({
             "Hour": ts.hour, "DayOfWeek": ts.dayofweek, "Month": ts.month,
@@ -54,8 +59,15 @@ def today_peak() -> dict:
             "Is_Vacation": vac, "Is_Exam_Cycle": exam,
         })
 
+    # Seed lags from last history day at the same clock hour (not CSV midnight).
+    same_hour = hist.index[hist.index.hour == now.hour]
+    anchor = same_hour[-1] if len(same_hour) else hist.index[-1]
+    seed = hist.loc[:anchor].iloc[-96:]
+    demand = seed[ZONES["total"][0]].astype(float).tolist()
+    campus = hist[ZONES["total"][0]].astype(float)
+    p90, p75 = float(campus.quantile(0.90)), float(campus.quantile(0.75))
+
     col_i = {c: i for i, c in enumerate(feature_columns)}
-    demand = history[ZONES["total"][0]].iloc[-96:].astype(float).tolist()
     model = models["total"]
     x = np.empty((1, len(feature_columns)), dtype=float)
     preds = []
@@ -64,7 +76,7 @@ def today_peak() -> dict:
         row = {
             **base,
             "Load_Lag_1hr": demand[-4], "Load_Lag_2hr": demand[-8], "Load_Lag_24hr": demand[-96],
-            "Load_Rolling_Mean_4hr": float(recent.mean()), "Load_Rolling_Std_4hr": float(recent.std(ddof=1)),
+            "Load_Rolling_Mean_4hr": float(recent.mean()), "Load_Rolling_Std_4hr": float(recent.std(ddof=1) or 0.0),
         }
         for c, i in col_i.items():
             x[0, i] = row[c]
@@ -72,16 +84,18 @@ def today_peak() -> dict:
         demand.append(pred)
         preds.append(pred)
 
-    p90, p75 = float(np.percentile(preds, 90)), float(np.percentile(preds, 75))
     peak_i = int(np.argmax(preds))
     peak = float(preds[peak_i])
     shaved = [min(v, p75) if v >= p90 else v for v in preds]
     co2 = max(0.0, (sum(preds) - sum(shaved)) * 0.25 * EF)
+    risk = "HIGH" if peak >= 350 or peak >= p90 else "MEDIUM" if peak >= p75 else "LOW"
+    peak_ts = future[peak_i]
     return {
         "live_temp_c": round(float(live_now), 1),
         "expected_peak_kw": round(peak, 1),
-        "target_peak_time": future[peak_i].strftime("%Y-%m-%d %H:%M:%S"),
-        "risk_status": "HIGH" if peak >= p90 else "MEDIUM" if peak >= p75 else "LOW",
+        "target_peak_time": peak_ts.strftime("%d %b, %H:%M"),
+        "target_peak_iso": peak_ts.strftime("%Y-%m-%d %H:%M:%S"),
+        "risk_status": risk,
         "carbon_avoided_kg": round(co2, 2),
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "generated_at": now.isoformat(timespec="seconds"),
     }
