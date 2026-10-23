@@ -22,7 +22,8 @@ try:
         PredictRequest,
         PredictResponse,
     )
-    from app.services.forecaster import forecast_ahead, predict_one
+    from app.services.forecaster import count_calendar_intervals, forecast_ahead, predict_one
+    from app.services.weather import today_peak
 except ImportError:
     from db import get_db
     from models import Forecast
@@ -38,7 +39,8 @@ except ImportError:
         PredictRequest,
         PredictResponse,
     )
-    from services.forecaster import forecast_ahead, predict_one
+    from services.forecaster import count_calendar_intervals, forecast_ahead, predict_one
+    from services.weather import today_peak
 
 router = APIRouter()
 _INTERVAL_HOURS = 0.25
@@ -48,10 +50,12 @@ _TREE_KG_CO2_PER_YEAR = 21.0
 def _parse_ts(value: Optional[str]):
     if not value:
         return None
-    try:
-        return pd.to_datetime(value).to_pydatetime()
-    except Exception:
+    ts = pd.to_datetime(str(value).replace("Z", ""), errors="coerce")
+    if pd.isna(ts):
         return None
+    if getattr(ts, "tz", None) is not None:
+        ts = ts.tz_convert("Asia/Kolkata").tz_localize(None)
+    return ts.to_pydatetime()
 
 
 @router.get("/forecasts/range", response_model=DataRangeResponse)
@@ -66,11 +70,38 @@ def get_data_range(db: Session = Depends(get_db)):
 def get_forecast_ahead(
     hours: int = Query(24, ge=1, le=168),
     as_of: Optional[str] = Query(None, description="Optional anchor timestamp; forecast starts after this row"),
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
 ):
+    as_of_dt = _parse_ts(as_of)
     try:
-        return forecast_ahead(hours, as_of or "")
+        payload = forecast_ahead(hours, as_of_dt.isoformat() if as_of_dt else (as_of or ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    df = pd.DataFrame(payload.get("items") or [])
+    if not df.empty and "ts" in df:
+        df["ts"] = pd.to_datetime(df["ts"])
+        df = df.set_index("ts")
+    start_dt, end_dt = _parse_ts(start), _parse_ts(end)
+    if start_dt and end_dt:
+        exam, vac = count_calendar_intervals(start_dt, end_dt)
+    elif not df.empty:
+        exam = int(df["is_exam"].sum()) if "is_exam" in df.columns else 0
+        vac = int(df["is_vacation"].sum()) if "is_vacation" in df.columns else 0
+    else:
+        exam = vac = 0
+    payload["exam_intervals"] = exam
+    payload["vacation_intervals"] = vac
+    return payload
+
+
+@router.get("/forecasts/today-peak")
+@router.get("/api/v1/forecasts/today-peak")
+def get_today_peak():
+    try:
+        return today_peak()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"today-peak failed: {exc}") from exc
 
 
 @router.get("/forecasts/carbon", response_model=CarbonImpactResponse)

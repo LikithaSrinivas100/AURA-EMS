@@ -67,6 +67,18 @@ health, health_error = api_client.get_health()
 if health_error:
     st.markdown(f'<div class="aura-warn">Backend unavailable · {health_error}</div>', unsafe_allow_html=True)
 
+live, live_error = api_client.get_today_peak()
+if live and not live_error:
+    peak_kw = float(live.get("expected_peak_kw") or 0)
+    risk = str(live.get("risk_status", "LOW"))
+    l1, l2, l3, l4 = st.columns(4)
+    l1.markdown(kpi_html("Live Bengaluru temp", f"{live.get('live_temp_c', '—')}", "°C", "Open-Meteo now"), unsafe_allow_html=True)
+    l2.markdown(kpi_html("Expected peak demand", f"{peak_kw:.1f}", "kW", f"Risk: {risk}", peak_kw <= 350), unsafe_allow_html=True)
+    l3.markdown(kpi_html("Target peak window", str(live.get("target_peak_time", "—")), sub="Next 24h"), unsafe_allow_html=True)
+    l4.markdown(kpi_html("Carbon mitigated", f"{float(live.get('carbon_avoided_kg') or 0):.2f}", "kg CO₂", "Peak-shave 24h", True), unsafe_allow_html=True)
+elif live_error:
+    st.markdown(f'<div class="aura-warn">Live peak banner: {live_error}</div>', unsafe_allow_html=True)
+
 metrics, metrics_error = api_client.get_metrics()
 if metrics_error:
     st.markdown(f'<div class="aura-warn">{metrics_error}</div>', unsafe_allow_html=True)
@@ -134,7 +146,9 @@ if as_of_note:
     st.info(as_of_note)
 
 with st.spinner("Computing demand forecast ahead…"):
-    ahead, ahead_error = api_client.get_forecast_ahead(hours, as_of=as_of)
+    ahead, ahead_error = api_client.get_forecast_ahead(
+        hours, as_of=as_of, start=start_ts.isoformat(), end=end_ts.isoformat()
+    )
 if ahead_error:
     st.markdown(
         f'<div class="aura-warn">{ahead_error} — try Next 24 hours, or Refresh after the backend wakes up.</div>',
@@ -149,8 +163,8 @@ elif ahead:
             f'Filters: {start_ts.isoformat()} → {end_ts.isoformat()} · '
             f'Forecast from ({anchor_lbl}): {ahead["generated_from"]} · Horizon: {hours}h · '
             f'Weather: {ahead["weather_source"]} · '
-            f'Exam intervals (in next {hours}h): {int(ahead_df["is_exam"].sum())}, '
-            f'Vacation: {int(ahead_df["is_vacation"].sum())}'
+            f'Exam intervals: {int(ahead.get("exam_intervals", ahead_df["is_exam"].sum()))}, '
+            f'Vacation: {int(ahead.get("vacation_intervals", ahead_df["is_vacation"].sum()))}'
             f'</div>',
             unsafe_allow_html=True,
         )
