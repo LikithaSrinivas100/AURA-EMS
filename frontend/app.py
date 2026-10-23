@@ -84,10 +84,10 @@ if metrics_error:
     st.markdown(f'<div class="aura-warn">{metrics_error}</div>', unsafe_allow_html=True)
 elif metrics:
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(kpi_html("Active model", str(metrics.get("active_model", "—")), sub="Production model"), unsafe_allow_html=True)
-    c2.markdown(kpi_html("RMSE", f"{metrics.get('rmse', 0):.2f}", "kW", "Root mean squared error"), unsafe_allow_html=True)
-    c3.markdown(kpi_html("MAPE", f"{metrics.get('mape', 0):.2f}", "%", "Mean absolute pct error"), unsafe_allow_html=True)
-    c4.markdown(kpi_html("MAE", f"{metrics.get('mae', 0):.2f}", "kW", "Mean absolute error"), unsafe_allow_html=True)
+    c1.markdown(kpi_html("Active model", str(metrics.get("active_model", "—")), sub="Test-set · not date-filtered"), unsafe_allow_html=True)
+    c2.markdown(kpi_html("RMSE", f"{metrics.get('rmse', 0):.2f}", "kW", "Hold-out test error"), unsafe_allow_html=True)
+    c3.markdown(kpi_html("MAPE", f"{metrics.get('mape', 0):.2f}", "%", "Hold-out test error"), unsafe_allow_html=True)
+    c4.markdown(kpi_html("MAE", f"{metrics.get('mae', 0):.2f}", "kW", "Hold-out test error"), unsafe_allow_html=True)
 
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Actual vs predicted demand</div>', unsafe_allow_html=True)
 st.markdown(
@@ -171,7 +171,7 @@ elif ahead:
         render_ahead_chart(ahead_df)
         high = ahead_df[ahead_df["risk_level"] == "HIGH"]
         if high.empty:
-            st.markdown('<div class="aura-ok">No HIGH peaks expected.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="aura-ok">No HIGH peaks in this ahead horizon (table below is Start→End history, not this chart).</div>', unsafe_allow_html=True)
         else:
             st.markdown(
                 f'<div class="aura-warn">{len(high)} HIGH peak intervals expected — peak '
@@ -199,8 +199,8 @@ elif carbon:
 
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Peak risk windows</div>', unsafe_allow_html=True)
 st.markdown(
-    f'<div class="aura-sec-sub">Top {int(peaks_limit)} peaks by demand inside '
-    f'{start_ts.isoformat()} → {end_ts.isoformat()} (highest kW first, not one row per month)</div>',
+    f'<div class="aura-sec-sub">Start→End history · mix of HIGH/MEDIUM/LOW · HIGH ≥ max(350 kW, P90) · '
+    f'{start_ts.isoformat()} → {end_ts.isoformat()}</div>',
     unsafe_allow_html=True,
 )
 peaks, peaks_error = api_client.get_peaks(

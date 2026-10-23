@@ -88,7 +88,7 @@ def today_peak() -> dict:
     peak = float(preds[peak_i])
     shaved = [min(v, p75) if v >= p90 else v for v in preds]
     co2 = max(0.0, (sum(preds) - sum(shaved)) * 0.25 * EF)
-    risk = "HIGH" if peak >= 350 or peak >= p90 else "MEDIUM" if peak >= p75 else "LOW"
+    risk = "HIGH" if peak >= max(350.0, p90) else "MEDIUM" if peak >= p75 else "LOW"
     peak_ts = future[peak_i]
     return {
         "live_temp_c": round(float(live_now), 1),
