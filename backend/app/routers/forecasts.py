@@ -16,6 +16,7 @@ try:
         EDU_TARIFF_INR_PER_KWH,
         ForecastItem,
         ForecastsResponse,
+        HIGH_RISK_KW,
         INDIA_GRID_EF_KG_PER_KWH,
         PeakItem,
         PeaksResponse,
@@ -33,6 +34,7 @@ except ImportError:
         EDU_TARIFF_INR_PER_KWH,
         ForecastItem,
         ForecastsResponse,
+        HIGH_RISK_KW,
         INDIA_GRID_EF_KG_PER_KWH,
         PeakItem,
         PeaksResponse,
@@ -203,16 +205,26 @@ def get_peaks(
     p90 = float(p90_row.best_pred_kw) if p90_row else 0.0
     p75 = float(p75_row.best_pred_kw) if p75_row else 0.0
 
+    hi_cut = max(HIGH_RISK_KW, p90)
+
     def risk(v: float) -> str:
-        if v >= p90:
+        if v >= hi_cut:
             return "HIGH"
         if v >= p75:
             return "MEDIUM"
         return "LOW"
 
-    top_rows = ordered.limit(limit).all()
+    n_h = max(1, (limit + 1) // 2)
+    n_m = max(1, limit // 3)
+    n_l = max(0, limit - n_h - n_m)
+    rows = (
+        ordered.filter(Forecast.best_pred_kw >= hi_cut).limit(n_h).all()
+        + ordered.filter(Forecast.best_pred_kw >= p75, Forecast.best_pred_kw < hi_cut).limit(n_m).all()
+        + (ordered.filter(Forecast.best_pred_kw < p75).limit(n_l).all() if n_l else [])
+    )
+    rows.sort(key=lambda r: r.best_pred_kw, reverse=True)
     return PeaksResponse(
-        items=[PeakItem(ts=r.ts, best_pred_kw=r.best_pred_kw, risk_level=risk(r.best_pred_kw)) for r in top_rows]
+        items=[PeakItem(ts=r.ts, best_pred_kw=r.best_pred_kw, risk_level=risk(r.best_pred_kw)) for r in rows]
     )
 
 

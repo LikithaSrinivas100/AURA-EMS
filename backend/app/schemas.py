@@ -67,6 +67,7 @@ class PredictResponse(BaseSchema):
 
 INDIA_GRID_EF_KG_PER_KWH = 0.71
 EDU_TARIFF_INR_PER_KWH = 8.50
+HIGH_RISK_KW = 350.0
 
 
 class CarbonImpactResponse(BaseSchema):

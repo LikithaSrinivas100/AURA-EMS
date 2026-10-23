@@ -172,7 +172,7 @@ def forecast_ahead(hours: int, as_of: str = "") -> dict:
             "temperature_c": round(context[i]["Temperature_C"], 1),
             "is_vacation": context[i]["Is_Vacation"],
             "is_exam": context[i]["Is_Exam_Cycle"],
-            "risk_level": "HIGH" if total >= p90 else "MEDIUM" if total >= p75 else "LOW",
+            "risk_level": "HIGH" if total >= max(350.0, p90) else "MEDIUM" if total >= p75 else "LOW",
         })
     return {
         "generated_from": last_ts.isoformat(),
