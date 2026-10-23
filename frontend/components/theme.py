@@ -129,15 +129,27 @@ div[role="radiogroup"] p,
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
   padding: 1.25rem 1.35rem; margin-bottom: 1rem;
 }
+div[data-testid="stHorizontalBlock"] {
+  gap: 12px !important;
+  align-items: stretch !important;
+  margin-bottom: 12px !important;
+}
+div[data-testid="stHorizontalBlock"] > div {
+  width: 25% !important;
+  flex: 1 1 0 !important;
+}
 .aura-kpi {
   background: #FFFFFF; border: 1px solid #E7E5E0; border-radius: 10px;
-  padding: 1.15rem 1.2rem; height: 100%;
+  padding: 1rem 1.1rem; box-sizing: border-box;
+  min-height: 128px; height: 128px;
+  display: flex; flex-direction: column; justify-content: space-between;
 }
 .aura-kpi .lbl {
   font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #4B5563;
 }
 .aura-kpi .val {
-  margin-top: 0.65rem; font-size: 28px; font-weight: 600; color: #15181E;
+  margin-top: 0.4rem; font-size: 22px; font-weight: 600; color: #15181E;
+  line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .aura-kpi .unit { font-size: 14px; color: #4B5563; margin-left: 4px; }
 .aura-kpi .sub { margin-top: 0.35rem; font-size: 12px; color: #4B5563; }

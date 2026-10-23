@@ -73,9 +73,9 @@ if live and not live_error:
     risk = str(live.get("risk_status", "LOW"))
     l1, l2, l3, l4 = st.columns(4)
     l1.markdown(kpi_html("Live Bengaluru temp", f"{live.get('live_temp_c', '—')}", "°C", "Open-Meteo now"), unsafe_allow_html=True)
-    l2.markdown(kpi_html("Expected peak demand", f"{peak_kw:.1f}", "kW", f"Risk: {risk}", peak_kw <= 350), unsafe_allow_html=True)
-    l3.markdown(kpi_html("Target peak window", str(live.get("target_peak_time", "—")), sub="Next 24h"), unsafe_allow_html=True)
-    l4.markdown(kpi_html("Carbon mitigated", f"{float(live.get('carbon_avoided_kg') or 0):.2f}", "kg CO₂", "Peak-shave 24h", True), unsafe_allow_html=True)
+    l2.markdown(kpi_html("Expected peak demand", f"{peak_kw:.1f}", "kW", f"Risk: {risk}", risk != "HIGH"), unsafe_allow_html=True)
+    l3.markdown(kpi_html("Target peak window", str(live.get("target_peak_time", "—")), sub="Next 24h IST"), unsafe_allow_html=True)
+    l4.markdown(kpi_html("Carbon mitigated", f"{float(live.get('carbon_avoided_kg') or 0):.1f}", "kg CO₂", "Peak-shave next 24h", True), unsafe_allow_html=True)
 elif live_error:
     st.markdown(f'<div class="aura-warn">Live peak banner: {live_error}</div>', unsafe_allow_html=True)
 
