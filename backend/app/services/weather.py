@@ -15,40 +15,38 @@ except ImportError:
     from services.forecaster import ZONES, _assets, _calendar_flags
 
 
-def fetch_hourly_temps(start: pd.Timestamp, end: pd.Timestamp):
-    params = (
-        f"latitude={LAT}&longitude={LON}&hourly=temperature_2m&timezone=Asia%2FKolkata"
-        f"&start_date={start:%Y-%m-%d}&end_date={end:%Y-%m-%d}&forecast_days=2"
+def fetch_live_weather():
+    """Current + 48h hourly temps from Open-Meteo (Bengaluru)."""
+    url = (
+        f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}"
+        f"&current=temperature_2m&hourly=temperature_2m&timezone=Asia%2FKolkata&forecast_days=2"
     )
-    for host in ("api.open-meteo.com/v1/forecast", "archive-api.open-meteo.com/v1/archive"):
-        try:
-            with urllib.request.urlopen(f"https://{host}?{params}", timeout=6) as resp:
-                hourly = json.load(resp)["hourly"]
-            series = pd.Series(hourly["temperature_2m"], index=pd.to_datetime(hourly["time"]), dtype=float).dropna()
-            if len(series):
-                return series.resample("15min").interpolate(), "Open-Meteo"
-        except Exception:
-            continue
-    return None, "fallback"
+    with urllib.request.urlopen(url, timeout=8) as resp:
+        data = json.load(resp)
+    current = float(data["current"]["temperature_2m"])
+    hourly = pd.Series(data["hourly"]["temperature_2m"], index=pd.to_datetime(data["hourly"]["time"]), dtype=float).dropna()
+    hourly.index = hourly.index.tz_localize(None)
+    return current, hourly.resample("15min").interpolate()
 
 
 def today_peak() -> dict:
     models, feature_columns, history, calendar = _assets()
     now = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None).floor("15min")
     future = pd.date_range(now, periods=96, freq="15min")
-    live, _ = fetch_hourly_temps(future[0], future[-1])
     last_temp = float(history["Temperature_C"].iloc[-1])
+    try:
+        live_now, live = fetch_live_weather()
+    except Exception:
+        live_now, live = last_temp, None
     day_flags = {d: _calendar_flags(calendar, pd.Timestamp(d)) for d in pd.unique(future.normalize())}
 
     context = []
     for ts in future:
         if live is not None:
-            try:
-                temp = float(live.loc[ts])
-            except KeyError:
-                temp = last_temp
+            val = live.asof(ts)
+            temp = float(val) if pd.notna(val) else live_now
         else:
-            temp = last_temp
+            temp = live_now
         vac, exam = day_flags[ts.normalize()]
         context.append({
             "Hour": ts.hour, "DayOfWeek": ts.dayofweek, "Month": ts.month,
@@ -79,9 +77,8 @@ def today_peak() -> dict:
     peak = float(preds[peak_i])
     shaved = [min(v, p75) if v >= p90 else v for v in preds]
     co2 = max(0.0, (sum(preds) - sum(shaved)) * 0.25 * EF)
-    live_now = context[0]["Temperature_C"]
     return {
-        "live_temp_c": round(live_now, 1),
+        "live_temp_c": round(float(live_now), 1),
         "expected_peak_kw": round(peak, 1),
         "target_peak_time": future[peak_i].strftime("%Y-%m-%d %H:%M:%S"),
         "risk_status": "HIGH" if peak >= p90 else "MEDIUM" if peak >= p75 else "LOW",
