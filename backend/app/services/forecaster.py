@@ -57,6 +57,30 @@ def _calendar_flags(calendar: pd.DataFrame, ts: pd.Timestamp) -> tuple[int, int]
     return int((events == "vacation").any()), int((events == "exam").any())
 
 
+def count_calendar_intervals(start, end) -> tuple[int, int]:
+    """15-min exam/vacation counts inside the queried Start→End window."""
+    _, _, _, calendar = _assets()
+    start, end = pd.Timestamp(start), pd.Timestamp(end)
+    if end < start:
+        start, end = end, start
+    rng = pd.date_range(start, end, freq="15min")
+    if rng.empty:
+        return 0, 0
+    days = rng.normalize()
+    exam = vac = 0
+    for _, row in calendar.iterrows():
+        s, e = pd.Timestamp(row.start_date).normalize(), pd.Timestamp(row.end_date).normalize()
+        n = int(((days >= s) & (days <= e)).sum())
+        if not n:
+            continue
+        ev = str(row.event).lower()
+        if ev == "exam":
+            exam += n
+        elif ev == "vacation":
+            vac += n
+    return exam, vac
+
+
 def predict_one(features: dict, zone: str = "total") -> float:
     models, feature_columns, _, _ = _assets()
     if zone not in models:

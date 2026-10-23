@@ -43,10 +43,26 @@ def get_forecasts(start: Optional[str] = None, end: Optional[str] = None) -> Tup
     return _get("/forecasts", params=params)
 
 
-def get_forecast_ahead(hours: int = 24, as_of: Optional[str] = None) -> Tuple[Optional[Dict], Optional[str]]:
+def get_today_peak() -> Tuple[Optional[Dict], Optional[str]]:
+    data, err = _get("/forecasts/today-peak")
+    if data is not None:
+        return data, None
+    return _get("/api/v1/forecasts/today-peak")
+
+
+def get_forecast_ahead(
+    hours: int = 24,
+    as_of: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Tuple[Optional[Dict], Optional[str]]:
     params = {"hours": hours}
     if as_of:
         params["as_of"] = as_of
+    if start:
+        params["start"] = start
+    if end:
+        params["end"] = end
     data, err = _get("/forecasts/ahead", params=params)
     # One retry at 24h if a long horizon times out on cold Render
     if err and "timed out" in err.lower() and hours > 24:
