@@ -23,6 +23,15 @@ class MetricsSummaryResponse(BaseSchema):
     mae: float
     train_rows: int
     test_rows: int
+    target: str = "Total_Campus_Demand_kW"
+    interval_minutes: int = 15
+    max_horizon_hours: int = 168
+    data_source: str = "simulated"
+    peak_alert_precision: Optional[float] = None
+    peak_alert_recall: Optional[float] = None
+    peak_alert_f1: Optional[float] = None
+    peak_alert_false_alarm_rate: Optional[float] = None
+    peak_alert_threshold_kw: Optional[float] = None
 
 
 class ForecastItem(BaseSchema):
@@ -38,10 +47,18 @@ class ForecastsResponse(BaseSchema):
     items: List[ForecastItem]
 
 
+RECOMMENDED_ACTIONS = {
+    "HIGH": "stagger HVAC and defer non-critical loads in this window.",
+    "MEDIUM": "pre-check HVAC schedules and avoid starting large equipment.",
+    "LOW": "no action needed.",
+}
+
+
 class PeakItem(BaseSchema):
     ts: datetime
     best_pred_kw: float
     risk_level: str
+    recommended_action: str = "no action needed."
 
 
 class PeaksResponse(BaseSchema):

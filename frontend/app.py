@@ -1,5 +1,6 @@
 """AURA-EMS dashboard — Calculated Caliber UI; same FastAPI wiring."""
 from datetime import datetime
+import time
 
 import pandas as pd
 import streamlit as st
@@ -45,10 +46,51 @@ with st.sidebar:
     )
     end_time = st.time_input("End time", value=default_end.time())
     st.markdown("**3. Other**")
+    zone = st.selectbox("Zone", ["campus", "academic", "hostels"], index=0)
     peaks_limit = st.number_input("Peaks limit", min_value=1, max_value=50, value=DEFAULT_PEAKS_LIMIT)
     show_model_lines = st.checkbox("Show XGB / LGB lines", value=False)
     forecast_from_end = st.checkbox("Forecast ahead from selected end date", value=True)
     st.button("Refresh", width="stretch")
+    with st.expander("REPLAY (simulated)"):
+        for k, v in (("replay_running", False), ("replay_cursor", 0), ("replay_items", []), ("replay_peaks", 0)):
+            st.session_state.setdefault(k, v)
+        if st.session_state.get("_rz") != zone:
+            st.session_state._rz = zone
+            st.session_state.replay_running = False
+            st.session_state.replay_cursor = 0
+            st.session_state.replay_items = []
+            st.session_state.replay_peaks = 0
+        b1, b2, b3 = st.columns(3)
+        if b1.button("Start", key="rp_s"):
+            st.session_state.replay_running = True
+        if b2.button("Pause", key="rp_p"):
+            st.session_state.replay_running = False
+        if b3.button("Reset", key="rp_r"):
+            api_client.replay_reset(zone=zone)
+            st.session_state.replay_running = False
+            st.session_state.replay_cursor = 0
+            st.session_state.replay_items = []
+            st.session_state.replay_peaks = 0
+        speed = st.select_slider("Speed", options=[1, 2, 4, 8], value=4, key="rp_sp")
+        st.caption(f"Peak alerts (replay): {st.session_state.replay_peaks}")
+        if st.session_state.replay_running:
+            batch, err = api_client.replay_next(
+                cursor=int(st.session_state.replay_cursor), n=int(speed), zone=zone
+            )
+            if err:
+                st.warning(err)
+                st.session_state.replay_running = False
+            elif batch:
+                st.session_state.replay_items.extend(batch.get("items") or [])
+                st.session_state.replay_cursor = int(batch.get("next_cursor", 0))
+                st.session_state.replay_peaks += int(batch.get("peak_alerts") or 0)
+                if batch.get("done"):
+                    st.session_state.replay_running = False
+                else:
+                    time.sleep(0.35)
+                    st.rerun()
+        if st.session_state.replay_items:
+            render_forecast_chart(st.session_state.replay_items, show_model_lines=False)
 
 start_dt = datetime.combine(start_date, start_time).isoformat()
 end_dt = datetime.combine(end_date, end_time).isoformat()
@@ -79,7 +121,19 @@ if live and not live_error:
 elif live_error:
     st.markdown(f'<div class="aura-warn">Live peak banner: {live_error}</div>', unsafe_allow_html=True)
 
-metrics, metrics_error = api_client.get_metrics()
+peaks, peaks_error = api_client.get_peaks(
+    limit=int(peaks_limit), start=start_ts.isoformat(), end=end_ts.isoformat(), zone=zone
+)
+_highs = [p for p in (peaks or {}).get("items", []) if p.get("risk_level") == "HIGH"] if peaks else []
+if _highs:
+    nh = sorted(_highs, key=lambda p: p["ts"])[0]
+    st.markdown(
+        f'<div class="aura-warn"><strong>Next HIGH window</strong> · {nh["ts"]} · '
+        f'{nh["best_pred_kw"]:.1f} kW · {nh.get("recommended_action", "")}</div>',
+        unsafe_allow_html=True,
+    )
+
+metrics, metrics_error = api_client.get_metrics(zone=zone)
 if metrics_error:
     st.markdown(f'<div class="aura-warn">{metrics_error}</div>', unsafe_allow_html=True)
 elif metrics:
@@ -91,10 +145,12 @@ elif metrics:
 
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Actual vs predicted demand</div>', unsafe_allow_html=True)
 st.markdown(
-    f'<div class="aura-sec-sub">Full Start→End history: {start_ts.isoformat()} → {end_ts.isoformat()}</div>',
+    f'<div class="aura-sec-sub">{zone} · kW · {start_ts.isoformat()} → {end_ts.isoformat()}</div>',
     unsafe_allow_html=True,
 )
-forecasts, forecasts_error = api_client.get_forecasts(start_ts.isoformat(), end_ts.isoformat())
+forecasts, forecasts_error = api_client.get_forecasts(
+    start_ts.isoformat(), end_ts.isoformat(), zone=zone
+)
 if forecasts_error:
     st.markdown(f'<div class="aura-warn">{forecasts_error}</div>', unsafe_allow_html=True)
 elif forecasts:
@@ -103,6 +159,10 @@ elif forecasts:
         st.info("No data for the selected dates")
     else:
         render_forecast_chart(items, show_model_lines=show_model_lines)
+        fcsv, _ = api_client.get_forecasts_csv(start_ts.isoformat(), end_ts.isoformat(), zone=zone)
+        if fcsv:
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+            st.download_button("Download CSV", fcsv, f"forecasts_{zone}.csv", "text/csv", key="dl_f")
 st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Demand forecast ahead</div>', unsafe_allow_html=True)
@@ -203,16 +263,15 @@ st.markdown(
     f'{start_ts.isoformat()} → {end_ts.isoformat()}</div>',
     unsafe_allow_html=True,
 )
-peaks, peaks_error = api_client.get_peaks(
-    limit=int(peaks_limit), start=start_ts.isoformat(), end=end_ts.isoformat()
-)
 if peaks_error:
     st.markdown(f'<div class="aura-warn">{peaks_error}</div>', unsafe_allow_html=True)
 elif peaks:
     render_peaks_table(peaks.get("items", []))
+    pcsv, _ = api_client.get_peaks_csv(
+        limit=int(peaks_limit), start=start_ts.isoformat(), end=end_ts.isoformat(), zone=zone
+    )
+    if pcsv:
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        st.download_button("Download peaks CSV", pcsv, f"peaks_{zone}.csv", "text/csv", key="dl_p")
 st.markdown("</div>", unsafe_allow_html=True)
 
-footer_cols = st.columns(2)
-footer_cols[0].caption("Decision-support tool, not a replacement for official BESCOM billing.")
-if metrics and not metrics_error:
-    footer_cols[1].caption(f"Model in use: {metrics.get('active_model', 'n/a')}")

@@ -7,12 +7,12 @@ Alliance University tracks energy reactively from past bills and gets hit by BES
 Architecture (three independent modules connected by files and a REST API):
 
 ```
-ML Implementation  --(aura_ems_best.pkl, metrics.json, dashboard_inference_feed.csv, X_test.csv)-->
+ML_Implementation  --(aura_ems_best.pkl, metrics.json, dashboard_inference_feed.csv, X_test.csv)-->
 Backend (FastAPI + SQLite)  --(REST JSON on :8000)-->
 Frontend (Streamlit on :8501)
 ```
 
-The frontend only talks to the backend API. The backend reads ML outputs directly from `ML Implementation/` (falling back to its own `outputs/` and `models/` copies).
+The frontend only talks to the backend API. The backend reads ML outputs directly from `ML_Implementation/` (falling back to its own `outputs/` and `models/` copies).
 
 ## 2. Review findings
 
@@ -22,7 +22,7 @@ The frontend only talks to the backend API. The backend reads ML outputs directl
 |---|---|---|
 | 1 | Frontend called port 8001; backend runs on 8000 | `frontend/services/config.py` now uses 8000 |
 | 2 | SQLite path `./aura_ems.db` depended on the folder you started from, so a different empty DB could be created | `backend/app/db.py` uses an absolute path to `backend/aura_ems.db` |
-| 3 | Backend seeded from a stale copy of ML outputs in `backend/outputs` | `backend/scripts/seed_db.py` reads `ML Implementation/outputs` first |
+| 3 | Backend seeded from a stale copy of ML outputs in `backend/outputs` | `backend/scripts/seed_db.py` reads `ML_Implementation/outputs` first |
 | 4 | `plotly` (frontend) and `xgboost`/`lightgbm` (backend) were listed in requirements but not installed, so the dashboard crashed on load | Installed from the requirements files |
 | 5 | The trained model was never used by the backend, and there was no future forecast; the dashboard only showed predictions on past test data. The problem statement's core value is "view impending load spikes 24 hours in advance" | Added `GET /forecasts/ahead` (24h / 7-day, total + academic + hostel, live weather + academic calendar) and a matching dashboard section |
 
@@ -38,11 +38,11 @@ The frontend only talks to the backend API. The backend reads ML outputs directl
 
 ## 3. What was built and how
 
-### Zone models (`ML Implementation/ml/train_zones.py`)
+### Zone models (`ML_Implementation/ml/train_zones.py`)
 
 Trains one XGBoost model each for `Academic_Demand_kW` and `Hostel_Demand_kW`, using the same 12 features and chronological 80/20 split as the main model. Saves `models/aura_ems_academic.pkl`, `models/aura_ems_hostel.pkl` and `outputs/zone_metrics.json`. Test results: academic blocks RMSE 9.65 kW, hostels RMSE 7.43 kW.
 
-### Academic calendar (`ML Implementation/data/academic_calendar.csv`)
+### Academic calendar (`ML_Implementation/data/academic_calendar.csv`)
 
 `start_date,end_date,event` rows (`exam` or `vacation`). Historical rows come from the dataset; the 2026-27 rows follow the same pattern (exams on November and May weekdays, vacations in December and June). **Replace these with the official university calendar when it's available.**
 
@@ -71,10 +71,10 @@ Response:
 
 Install once:
 ```
-pip install -r "ML Implementation/requirements-ml.txt" -r backend/requirements-backend.txt -r frontend/requirements-frontend.txt
+pip install -r "ML_Implementation/requirements-ml.txt" -r backend/requirements-backend.txt -r frontend/requirements-frontend.txt
 ```
 
-1. (Only after retraining) in `ML Implementation`: `python -m ml.feature_engineering`, `python -m ml.train`, `python -m ml.evaluate`, `python -m ml.train_zones`
+1. (Only after retraining) in `ML_Implementation`: `python -m ml.feature_engineering`, `python -m ml.train`, `python -m ml.evaluate`, `python -m ml.train_zones`
 2. In `backend`: `python scripts/seed_db.py`
 3. In `backend`: `python -m uvicorn app.main:app --port 8000` (API docs at http://127.0.0.1:8000/docs)
 4. In `frontend`: `python -m streamlit run app.py` (dashboard at http://localhost:8501)

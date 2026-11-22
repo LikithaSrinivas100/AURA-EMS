@@ -15,7 +15,7 @@ except ImportError:
     from db import Base, SessionLocal, engine
     from models import EnergyLog, Forecast, ModelPerformanceMetric, ModelRegistry
 
-ML_ROOT = BASE_DIR.parent / "ML Implementation"
+ML_ROOT = BASE_DIR.parent / "ML_Implementation"
 ML_OUTPUTS = ML_ROOT / "outputs"
 ML_DATA = ML_ROOT / "data"
 OUTPUTS_DIR = ML_OUTPUTS if (ML_OUTPUTS / "metrics.json").exists() else BASE_DIR / "outputs"
@@ -30,7 +30,7 @@ def main():
     Base.metadata.create_all(bind=engine)
 
     if "--mock" in sys.argv or "--generate-mock" in sys.argv:
-        print("ERROR: mock seeding disabled. Provide real ML outputs under ML Implementation/outputs.")
+        print("ERROR: mock seeding disabled. Provide real ML outputs under ML_Implementation/outputs.")
         sys.exit(1)
 
     if not CSV_PATH.exists() or CSV_PATH.stat().st_size == 0:
