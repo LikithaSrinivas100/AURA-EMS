@@ -29,9 +29,9 @@ Close Review-02 gap: live-feeling dashboard (replay, zones, alerts), scientifica
 | F1 | Baselines + peak-alert metrics | never |
 | F2 | Zone drill-down | local |
 | F3 | Replay mode | local |
-| F4 | CSV export | cut 3rd |
-| F5 | Ingestion + gaps | never |
-| F6 | Alert panel | cut 1st |
+| F4 | CSV export | local |
+| F5 | Ingestion + gaps | local |
+| F6 | Alert panel | local |
 | 7 | Tests green + polish | cut 2nd (polish only) |
 | 8 | Freeze / merge / deploy once | — |
 | 9 | Facts + screenshots | — |

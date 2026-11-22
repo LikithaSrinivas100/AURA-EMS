@@ -123,3 +123,38 @@ def replay_reset(zone: str = "campus") -> Tuple[Optional[Dict], Optional[str]]:
         return response.json(), None
     except requests.exceptions.RequestException as exc:
         return None, str(exc)
+
+
+def _get_text(path: str, params: Optional[dict] = None) -> Tuple[Optional[str], Optional[str]]:
+    url = f"{API_BASE_URL}{path}"
+    try:
+        response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        return response.text, None
+    except requests.exceptions.RequestException as exc:
+        return None, str(exc)
+
+
+def get_forecasts_csv(
+    start: Optional[str] = None, end: Optional[str] = None, zone: str = "campus"
+) -> Tuple[Optional[str], Optional[str]]:
+    params: dict = {"zone": zone}
+    if start:
+        params["start"] = start
+    if end:
+        params["end"] = end
+    return _get_text("/forecasts/export.csv", params=params)
+
+
+def get_peaks_csv(
+    limit: int = 10,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    zone: str = "campus",
+) -> Tuple[Optional[str], Optional[str]]:
+    params: dict = {"limit": limit, "zone": zone}
+    if start:
+        params["start"] = start
+    if end:
+        params["end"] = end
+    return _get_text("/forecasts/peaks/export.csv", params=params)

@@ -1,9 +1,12 @@
+import csv
+import io
 from datetime import timedelta
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -22,6 +25,7 @@ try:
         PeaksResponse,
         PredictRequest,
         PredictResponse,
+        RECOMMENDED_ACTIONS,
     )
     from app.services.forecaster import (
         count_calendar_intervals,
@@ -46,6 +50,7 @@ except ImportError:
         PeaksResponse,
         PredictRequest,
         PredictResponse,
+        RECOMMENDED_ACTIONS,
     )
     from services.forecaster import (
         count_calendar_intervals,
@@ -59,6 +64,15 @@ except ImportError:
 router = APIRouter()
 _INTERVAL_HOURS = 0.25
 _TREE_KG_CO2_PER_YEAR = 21.0
+
+
+def _peak_item(ts, kw: float, level: str) -> PeakItem:
+    return PeakItem(
+        ts=ts,
+        best_pred_kw=kw,
+        risk_level=level,
+        recommended_action=RECOMMENDED_ACTIONS.get(level, RECOMMENDED_ACTIONS["LOW"]),
+    )
 
 
 def _parse_ts(value: Optional[str]):
@@ -227,7 +241,7 @@ def _peaks_from_items(raw: list[dict], limit: int) -> PeaksResponse:
     picked.sort(key=lambda r: float(r["best_pred_kw"]), reverse=True)
     return PeaksResponse(
         items=[
-            PeakItem(ts=r["ts"], best_pred_kw=float(r["best_pred_kw"]), risk_level=risk(float(r["best_pred_kw"])))
+            _peak_item(r["ts"], float(r["best_pred_kw"]), risk(float(r["best_pred_kw"])))
             for r in picked
         ]
     )
@@ -282,7 +296,70 @@ def get_peaks(
     )
     rows.sort(key=lambda r: r.best_pred_kw, reverse=True)
     return PeaksResponse(
-        items=[PeakItem(ts=r.ts, best_pred_kw=r.best_pred_kw, risk_level=risk(r.best_pred_kw)) for r in rows]
+        items=[_peak_item(r.ts, float(r.best_pred_kw), risk(float(r.best_pred_kw))) for r in rows]
+    )
+
+
+@router.get("/forecasts/export.csv")
+def export_forecasts_csv(
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    zone: str = Query("campus"),
+    db: Session = Depends(get_db),
+):
+    payload = get_forecasts(start=start, end=end, zone=zone, db=db)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(
+        [
+            "timestamp_iso",
+            "actual_demand_kw",
+            "predicted_kw",
+            "xgb_pred_kw",
+            "lgb_pred_kw",
+            "zone",
+        ]
+    )
+    for it in payload.items:
+        w.writerow(
+            [
+                it.ts.isoformat(),
+                "" if it.actual_demand_kw is None else f"{it.actual_demand_kw:.4f}",
+                f"{it.best_pred_kw:.4f}",
+                "" if it.xgb_pred_kw is None else f"{it.xgb_pred_kw:.4f}",
+                "" if it.lgb_pred_kw is None else f"{it.lgb_pred_kw:.4f}",
+                zone,
+            ]
+        )
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="forecasts_{zone}.csv"'},
+    )
+
+
+@router.get("/forecasts/peaks/export.csv")
+def export_peaks_csv(
+    limit: int = Query(10, ge=1, le=50),
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    zone: str = Query("campus"),
+    db: Session = Depends(get_db),
+):
+    payload = get_peaks(limit=limit, start=start, end=end, zone=zone, db=db)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["timestamp_iso", "predicted_kw", "risk_level", "recommended_action", "zone"])
+    for it in payload.items:
+        w.writerow(
+            [it.ts.isoformat(), f"{it.best_pred_kw:.4f}", it.risk_level, it.recommended_action, zone]
+        )
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="peaks_{zone}.csv"'},
     )
 
 

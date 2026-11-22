@@ -101,6 +101,31 @@ if live and not live_error:
 elif live_error:
     st.markdown(f'<div class="aura-warn">Live peak banner: {live_error}</div>', unsafe_allow_html=True)
 
+# Next HIGH window — answer at a glance (F6)
+peaks, peaks_error = api_client.get_peaks(
+    limit=int(peaks_limit),
+    start=start_ts.isoformat(),
+    end=end_ts.isoformat(),
+    zone=zone,
+)
+_next_high = None
+if peaks and not peaks_error:
+    _highs = [p for p in peaks.get("items", []) if p.get("risk_level") == "HIGH"]
+    if _highs:
+        _next_high = sorted(_highs, key=lambda p: p["ts"])[0]
+if _next_high:
+    st.markdown(
+        f'<div class="aura-warn"><strong>Next HIGH window</strong> · '
+        f'{_next_high["ts"]} · {_next_high["best_pred_kw"]:.1f} kW · '
+        f'{_next_high.get("recommended_action", "")}</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        '<div class="aura-ok"><strong>Next HIGH window</strong> · none in selected range</div>',
+        unsafe_allow_html=True,
+    )
+
 metrics, metrics_error = api_client.get_metrics(zone=zone)
 if metrics_error:
     st.markdown(f'<div class="aura-warn">{metrics_error}</div>', unsafe_allow_html=True)
@@ -128,6 +153,17 @@ elif forecasts:
         st.info("No data for the selected dates")
     else:
         render_forecast_chart(items, show_model_lines=show_model_lines, title=chart_title)
+        fcsv, ferr = api_client.get_forecasts_csv(
+            start_ts.isoformat(), end_ts.isoformat(), zone=zone
+        )
+        if fcsv and not ferr:
+            st.download_button(
+                "Download forecasts CSV",
+                data=fcsv,
+                file_name=f"forecasts_{zone}.csv",
+                mime="text/csv",
+                key="dl_forecasts",
+            )
 st.markdown("</div>", unsafe_allow_html=True)
 
 # --- REPLAY (simulated) ---
@@ -284,16 +320,24 @@ st.markdown(
     f'{start_ts.isoformat()} → {end_ts.isoformat()}</div>',
     unsafe_allow_html=True,
 )
-peaks, peaks_error = api_client.get_peaks(
-    limit=int(peaks_limit),
-    start=start_ts.isoformat(),
-    end=end_ts.isoformat(),
-    zone=zone,
-)
 if peaks_error:
     st.markdown(f'<div class="aura-warn">{peaks_error}</div>', unsafe_allow_html=True)
 elif peaks:
     render_peaks_table(peaks.get("items", []))
+    pcsv, perr = api_client.get_peaks_csv(
+        limit=int(peaks_limit),
+        start=start_ts.isoformat(),
+        end=end_ts.isoformat(),
+        zone=zone,
+    )
+    if pcsv and not perr:
+        st.download_button(
+            "Download peaks CSV",
+            data=pcsv,
+            file_name=f"peaks_{zone}.csv",
+            mime="text/csv",
+            key="dl_peaks",
+        )
 st.markdown("</div>", unsafe_allow_html=True)
 
 footer_cols = st.columns(2)

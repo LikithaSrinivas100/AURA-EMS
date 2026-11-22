@@ -47,10 +47,18 @@ class ForecastsResponse(BaseSchema):
     items: List[ForecastItem]
 
 
+RECOMMENDED_ACTIONS = {
+    "HIGH": "stagger HVAC and defer non-critical loads in this window.",
+    "MEDIUM": "pre-check HVAC schedules and avoid starting large equipment.",
+    "LOW": "no action needed.",
+}
+
+
 class PeakItem(BaseSchema):
     ts: datetime
     best_pred_kw: float
     risk_level: str
+    recommended_action: str = "no action needed."
 
 
 class PeaksResponse(BaseSchema):
