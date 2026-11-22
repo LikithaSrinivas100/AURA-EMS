@@ -161,6 +161,7 @@ elif forecasts:
         render_forecast_chart(items, show_model_lines=show_model_lines)
         fcsv, _ = api_client.get_forecasts_csv(start_ts.isoformat(), end_ts.isoformat(), zone=zone)
         if fcsv:
+            st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
             st.download_button("Download CSV", fcsv, f"forecasts_{zone}.csv", "text/csv", key="dl_f")
 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -270,15 +271,7 @@ elif peaks:
         limit=int(peaks_limit), start=start_ts.isoformat(), end=end_ts.isoformat(), zone=zone
     )
     if pcsv:
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
         st.download_button("Download peaks CSV", pcsv, f"peaks_{zone}.csv", "text/csv", key="dl_p")
 st.markdown("</div>", unsafe_allow_html=True)
 
-footer_cols = st.columns(2)
-footer_cols[0].caption("Decision-support tool, not a replacement for official BESCOM billing. · Simulated data.")
-if metrics and not metrics_error:
-    footer_cols[1].caption(
-        f"Model: {metrics.get('active_model', 'n/a')} · "
-        f"target={metrics.get('target', 'Total_Campus_Demand_kW')} · "
-        f"{metrics.get('interval_minutes', 15)} min · max {metrics.get('max_horizon_hours', 168)} h · "
-        f"source={metrics.get('data_source', 'simulated')}"
-    )
