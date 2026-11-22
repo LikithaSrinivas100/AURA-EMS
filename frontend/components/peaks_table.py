@@ -1,4 +1,4 @@
-"""Section D — Peak risk table with design-system risk chips."""
+"""Section D — Peak risk table with design-system risk chips + actions."""
 import pandas as pd
 import streamlit as st
 
@@ -26,7 +26,12 @@ def render_peaks_table(items: list) -> None:
     df["Time"] = pd.to_datetime(df["ts"]).dt.strftime("%d %b, %H:%M")
     df["Predicted Demand (kW)"] = df["best_pred_kw"].map(lambda v: f"{v:.1f}")
     df["Risk"] = df["risk_level"].apply(_risk_badge)
-    display_df = df[["Time", "Predicted Demand (kW)", "Risk"]]
+    action_col = "recommended_action" if "recommended_action" in df.columns else None
+    if action_col:
+        df["Action"] = df[action_col]
+        display_df = df[["Time", "Predicted Demand (kW)", "Risk", "Action"]]
+    else:
+        display_df = df[["Time", "Predicted Demand (kW)", "Risk"]]
     st.markdown(
         "<div style='background:#FFF;border:1px solid #E7E5E0;border-radius:10px;padding:8px 12px;"
         "overflow:auto;font-family:Inter,system-ui,sans-serif;font-size:13px;color:#15181E;'>"
