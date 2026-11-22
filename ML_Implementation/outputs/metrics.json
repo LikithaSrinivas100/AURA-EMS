@@ -1,0 +1,112 @@
+{
+  "selection_metric": "lowest test RMSE among XGBoost/LightGBM",
+  "winner": "XGBoost",
+  "target_column": "Total_Campus_Demand_kW",
+  "target": "Total_Campus_Demand_kW",
+  "interval_minutes": 15,
+  "max_horizon_hours": 168,
+  "data_source": "simulated",
+  "feature_columns": [
+    "Hour",
+    "DayOfWeek",
+    "Month",
+    "Temperature_C",
+    "Is_Weekend",
+    "Is_Vacation",
+    "Is_Exam_Cycle",
+    "Load_Lag_1hr",
+    "Load_Lag_2hr",
+    "Load_Lag_24hr",
+    "Load_Rolling_Mean_4hr",
+    "Load_Rolling_Std_4hr"
+  ],
+  "train_rows": 27956,
+  "test_rows": 6989,
+  "data_start": "2025-09-02 00:00:00",
+  "data_end": "2026-09-01 00:00:00",
+  "metrics": {
+    "Baseline": {
+      "rmse": 79.43733103020176,
+      "mae": 36.54295765765489,
+      "mape_percent": 34.00267748589758,
+      "r2": 0.38423481286953964,
+      "mape_zero_actual_rows_excluded": 0
+    },
+    "SeasonalNaive7Day": {
+      "rmse": 50.5709752622659,
+      "mae": 22.27762027918949,
+      "mape_percent": 17.946670547161403,
+      "r2": 0.750443720723664,
+      "mape_zero_actual_rows_excluded": 0
+    },
+    "XGBoost": {
+      "rmse": 13.717872537579344,
+      "mae": 9.158081410391045,
+      "mape_percent": 9.587473062691304,
+      "r2": 0.9816371802926439,
+      "mape_zero_actual_rows_excluded": 0
+    },
+    "LightGBM": {
+      "rmse": 16.678489587738436,
+      "mae": 9.864149888272928,
+      "mape_percent": 9.881475238129418,
+      "r2": 0.9728556603994956,
+      "mape_zero_actual_rows_excluded": 0
+    }
+  },
+  "peak_alert": {
+    "threshold_kw": 350.0,
+    "threshold_rule": "max(350, train_p90)",
+    "train_p90_kw": 292.38364276357527,
+    "tp": 4,
+    "fp": 7,
+    "fn": 17,
+    "tn": 6961,
+    "precision": 0.36363636363636365,
+    "recall": 0.19047619047619047,
+    "f1": 0.25,
+    "false_alarm_rate": 0.0010045924225028703
+  },
+  "horizon_error": [
+    {
+      "horizon_hours": 1,
+      "steps": 4,
+      "rmse": 6.48692246906681,
+      "mape_percent": 18.02091498519345,
+      "mae": 6.099726551034749,
+      "r2": -0.7504343668501472
+    },
+    {
+      "horizon_hours": 6,
+      "steps": 24,
+      "rmse": 9.407787770359397,
+      "mape_percent": 23.159880277581422,
+      "mae": 8.468686844467731,
+      "r2": -0.03279418524567479
+    },
+    {
+      "horizon_hours": 24,
+      "steps": 96,
+      "rmse": 8.616736716869825,
+      "mape_percent": 18.6592652543408,
+      "mae": 7.116454484478761,
+      "r2": 0.005524554913451496
+    },
+    {
+      "horizon_hours": 72,
+      "steps": 288,
+      "rmse": 8.458600075854102,
+      "mape_percent": 17.33948487508841,
+      "mae": 6.880047214120002,
+      "r2": -0.011180497843753745
+    },
+    {
+      "horizon_hours": 168,
+      "steps": 672,
+      "rmse": 8.785628764123924,
+      "mape_percent": 17.865915930439975,
+      "mae": 7.093435361614728,
+      "r2": -0.016559592272779033
+    }
+  ]
+}

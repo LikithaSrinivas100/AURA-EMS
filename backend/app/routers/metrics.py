@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -12,12 +15,27 @@ except ImportError:
 
 router = APIRouter()
 
+_ML_METRICS = (
+    Path(__file__).resolve().parents[3] / "ML_Implementation" / "outputs" / "metrics.json"
+)
+
+
+def _peak_from_ml_metrics() -> dict:
+    if not _ML_METRICS.is_file():
+        return {}
+    try:
+        payload = json.loads(_ML_METRICS.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload.get("peak_alert") or {}
+
 
 @router.get("/metrics/summary", response_model=MetricsSummaryResponse)
 def get_metrics_summary(db: Session = Depends(get_db)):
     active_model = db.query(ModelRegistry).filter(ModelRegistry.is_active == True).first()
     if not active_model:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active model found")
+    peak = _peak_from_ml_metrics()
     return MetricsSummaryResponse(
         active_model=active_model.model_name,
         rmse=active_model.rmse if active_model.rmse is not None else 0.0,
@@ -29,4 +47,9 @@ def get_metrics_summary(db: Session = Depends(get_db)):
         interval_minutes=15,
         max_horizon_hours=168,
         data_source="simulated",
+        peak_alert_precision=peak.get("precision"),
+        peak_alert_recall=peak.get("recall"),
+        peak_alert_f1=peak.get("f1"),
+        peak_alert_false_alarm_rate=peak.get("false_alarm_rate"),
+        peak_alert_threshold_kw=peak.get("threshold_kw"),
     )
