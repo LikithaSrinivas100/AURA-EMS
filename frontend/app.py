@@ -213,6 +213,11 @@ elif peaks:
 st.markdown("</div>", unsafe_allow_html=True)
 
 footer_cols = st.columns(2)
-footer_cols[0].caption("Decision-support tool, not a replacement for official BESCOM billing.")
+footer_cols[0].caption("Decision-support tool, not a replacement for official BESCOM billing. · Simulated data.")
 if metrics and not metrics_error:
-    footer_cols[1].caption(f"Model in use: {metrics.get('active_model', 'n/a')}")
+    footer_cols[1].caption(
+        f"Model: {metrics.get('active_model', 'n/a')} · "
+        f"target={metrics.get('target', 'Total_Campus_Demand_kW')} · "
+        f"{metrics.get('interval_minutes', 15)} min · max {metrics.get('max_horizon_hours', 168)} h · "
+        f"source={metrics.get('data_source', 'simulated')}"
+    )

@@ -1,6 +1,8 @@
 # AURA-EMS
 ### Context-Aware Campus Energy Demand Forecasting Framework using Heterogeneous Time-Series Fusion
 
+**Prediction problem (exact):** target = `Total_Campus_Demand_kW`; interval = **15 minutes**; max horizon = **168 hours**; **data_source = simulated** (not real meter data).
+
 **Team Project — BCA 3rd Year, Alliance University**
 
 AURA-EMS helps Alliance University move from **reactive** energy billing to **proactive, context-aware** energy demand forecasting. The system fuses historical smart-meter data with academic-calendar and weather context to predict short-term campus power demand, flag upcoming peak-load risk windows, and give facilities teams enough lead time to shift or defer non-critical loads — reducing BESCOM peak-tariff penalties and operational waste.

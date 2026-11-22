@@ -25,4 +25,8 @@ def get_metrics_summary(db: Session = Depends(get_db)):
         mae=active_model.mae if active_model.mae is not None else 0.0,
         train_rows=active_model.train_rows if getattr(active_model, "train_rows", None) is not None else 0,
         test_rows=active_model.test_rows if getattr(active_model, "test_rows", None) is not None else 0,
+        target="Total_Campus_Demand_kW",
+        interval_minutes=15,
+        max_horizon_hours=168,
+        data_source="simulated",
     )

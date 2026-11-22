@@ -23,6 +23,10 @@ class MetricsSummaryResponse(BaseSchema):
     mae: float
     train_rows: int
     test_rows: int
+    target: str = "Total_Campus_Demand_kW"
+    interval_minutes: int = 15
+    max_horizon_hours: int = 168
+    data_source: str = "simulated"
 
 
 class ForecastItem(BaseSchema):
