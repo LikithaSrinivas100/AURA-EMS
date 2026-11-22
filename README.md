@@ -3,6 +3,8 @@
 
 **Prediction problem (exact):** target = `Total_Campus_Demand_kW`; interval = **15 minutes**; max horizon = **168 hours**; **data_source = simulated** (not real meter data).
 
+**Ingestion / gaps (Review-03):** `POST /ingest/readings` accepts CSV/JSON meter samples. Short gaps (≤1 hour) are **linearly interpolated** and flagged `imputed=true`; gaps >1 hour are **not filled** (reported in `long_gaps`). This **replaces the earlier “no imputation” policy** because real sensors drop readings — silently training on holes is worse than short, flagged interpolation. Demo only (`sample_data/meter_gaps_demo.csv`); not a live BESCOM/BMS feed.
+
 **Team Project — BCA 3rd Year, Alliance University**
 
 AURA-EMS helps Alliance University move from **reactive** energy billing to **proactive, context-aware** energy demand forecasting. The system fuses historical smart-meter data with academic-calendar and weather context to predict short-term campus power demand, flag upcoming peak-load risk windows, and give facilities teams enough lead time to shift or defer non-critical loads — reducing BESCOM peak-tariff penalties and operational waste.

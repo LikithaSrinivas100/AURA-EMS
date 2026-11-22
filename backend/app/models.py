@@ -94,6 +94,7 @@ class MeterReading(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     ts: Mapped[datetime] = mapped_column(DateTime, unique=True, index=True, nullable=False)
     demand_kw: Mapped[float] = mapped_column(Float, nullable=False)
+    imputed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     temperature_c: Mapped[float | None] = mapped_column(Float, nullable=True)
     hour: Mapped[int | None] = mapped_column(Integer, nullable=True)
     day_of_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
