@@ -26,16 +26,18 @@ def get_health() -> Tuple[Optional[Dict], Optional[str]]:
     return _get("/health")
 
 
-def get_metrics() -> Tuple[Optional[Dict], Optional[str]]:
-    return _get("/metrics/summary")
+def get_metrics(zone: str = "campus") -> Tuple[Optional[Dict], Optional[str]]:
+    return _get("/metrics/summary", params={"zone": zone})
 
 
 def get_data_range() -> Tuple[Optional[Dict], Optional[str]]:
     return _get("/forecasts/range")
 
 
-def get_forecasts(start: Optional[str] = None, end: Optional[str] = None) -> Tuple[Optional[Dict], Optional[str]]:
-    params = {}
+def get_forecasts(
+    start: Optional[str] = None, end: Optional[str] = None, zone: str = "campus"
+) -> Tuple[Optional[Dict], Optional[str]]:
+    params: dict = {"zone": zone}
     if start:
         params["start"] = start
     if end:
@@ -91,11 +93,33 @@ def get_carbon(
 
 
 def get_peaks(
-    limit: int = 10, start: Optional[str] = None, end: Optional[str] = None
+    limit: int = 10,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    zone: str = "campus",
 ) -> Tuple[Optional[Dict], Optional[str]]:
-    params = {"limit": limit}
+    params: dict = {"limit": limit, "zone": zone}
     if start:
         params["start"] = start
     if end:
         params["end"] = end
     return _get("/forecasts/peaks", params=params)
+
+
+def replay_next(
+    cursor: Optional[int] = None, n: int = 4, zone: str = "campus"
+) -> Tuple[Optional[Dict], Optional[str]]:
+    params: dict = {"n": n, "zone": zone}
+    if cursor is not None:
+        params["cursor"] = cursor
+    return _get("/replay/next", params=params)
+
+
+def replay_reset(zone: str = "campus") -> Tuple[Optional[Dict], Optional[str]]:
+    url = f"{API_BASE_URL}/replay/reset"
+    try:
+        response = requests.post(url, params={"zone": zone}, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        return response.json(), None
+    except requests.exceptions.RequestException as exc:
+        return None, str(exc)

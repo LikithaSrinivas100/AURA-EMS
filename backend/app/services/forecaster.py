@@ -10,13 +10,70 @@ import numpy as np
 import pandas as pd
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
-ML_DIR = BACKEND_DIR.parent / "ML Implementation"
+ML_DIR = BACKEND_DIR.parent / "ML_Implementation"
 CAMPUS_LAT, CAMPUS_LON = 12.7286, 77.7027  # Alliance University, Anekal, Bengaluru
 ZONES = {
     "total": ("Total_Campus_Demand_kW", "aura_ems_best.pkl"),
     "academic": ("Academic_Demand_kW", "aura_ems_academic.pkl"),
     "hostel": ("Hostel_Demand_kW", "aura_ems_hostel.pkl"),
 }
+API_ZONES = {"campus": "total", "academic": "academic", "hostels": "hostel"}
+
+
+def parse_zone(zone: str) -> str:
+    key = (zone or "campus").strip().lower()
+    if key not in API_ZONES:
+        raise ValueError(f"Invalid zone {zone!r}. Use campus, academic, or hostels.")
+    return API_ZONES[key]
+
+
+def warm_models() -> None:
+    """Load pickles once at startup."""
+    _assets()
+
+
+def zone_history_items(zone_api: str, start=None, end=None) -> list[dict]:
+    """Actual + zone-model predictions from cached master history (simulated)."""
+    z = parse_zone(zone_api)
+    models, feature_columns, history, _ = _assets()
+    col = ZONES[z][0]
+    demand = history[col].astype(float)
+    feat = pd.DataFrame(
+        {
+            "Hour": history["Hour"],
+            "DayOfWeek": history["DayOfWeek"],
+            "Month": history["Month"],
+            "Temperature_C": history["Temperature_C"],
+            "Is_Weekend": history["Is_Weekend"],
+            "Is_Vacation": history["Is_Vacation"],
+            "Is_Exam_Cycle": history["Is_Exam_Cycle"],
+            "Load_Lag_1hr": demand.shift(4),
+            "Load_Lag_2hr": demand.shift(8),
+            "Load_Lag_24hr": demand.shift(96),
+            "Load_Rolling_Mean_4hr": demand.shift(1).rolling(16).mean(),
+            "Load_Rolling_Std_4hr": demand.shift(1).rolling(16).std(),
+        },
+        index=history.index,
+    )
+    if start is not None:
+        feat = feat.loc[feat.index >= pd.Timestamp(start)]
+        demand = demand.loc[demand.index >= pd.Timestamp(start)]
+    if end is not None:
+        feat = feat.loc[feat.index <= pd.Timestamp(end)]
+        demand = demand.loc[demand.index <= pd.Timestamp(end)]
+    aligned = feat.dropna()
+    y = demand.reindex(aligned.index)
+    preds = models[z].predict(aligned[feature_columns])
+    return [
+        {
+            "ts": ts.to_pydatetime(),
+            "actual_demand_kw": round(float(y.loc[ts]), 2),
+            "best_pred_kw": round(float(p), 2),
+            "xgb_pred_kw": None,
+            "lgb_pred_kw": None,
+        }
+        for ts, p in zip(aligned.index, preds)
+    ]
 
 
 def _ml_path(sub: str, name: str) -> Path:

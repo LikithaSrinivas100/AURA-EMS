@@ -1,5 +1,6 @@
 """AURA-EMS dashboard — Calculated Caliber UI; same FastAPI wiring."""
 from datetime import datetime
+import time
 
 import pandas as pd
 import streamlit as st
@@ -10,6 +11,13 @@ from components.peaks_table import render_peaks_table
 from components.theme import apply_theme, kpi_html
 from services import api_client
 from services.config import DEFAULT_PEAKS_LIMIT
+
+ZONE_LABELS = {"campus": "Campus total", "academic": "Academic", "hostels": "Hostels"}
+ZONE_TARGETS = {
+    "campus": "Total_Campus_Demand_kW",
+    "academic": "Academic_Demand_kW",
+    "hostels": "Hostel_Demand_kW",
+}
 
 st.set_page_config(
     page_title="AURA-EMS | Campus Energy Demand Forecasting",
@@ -50,6 +58,20 @@ with st.sidebar:
     forecast_from_end = st.checkbox("Forecast ahead from selected end date", value=True)
     st.button("Refresh", width="stretch")
 
+zone = st.radio(
+    "Zone",
+    options=list(ZONE_LABELS.keys()),
+    format_func=lambda z: ZONE_LABELS[z],
+    horizontal=True,
+    key="aura_zone",
+)
+if st.session_state.get("_replay_zone") != zone:
+    st.session_state["_replay_zone"] = zone
+    st.session_state["replay_items"] = []
+    st.session_state["replay_cursor"] = 0
+    st.session_state["replay_peaks"] = 0
+    st.session_state["replay_running"] = False
+
 start_dt = datetime.combine(start_date, start_time).isoformat()
 end_dt = datetime.combine(end_date, end_time).isoformat()
 start_ts = pd.Timestamp(start_dt)
@@ -79,22 +101,25 @@ if live and not live_error:
 elif live_error:
     st.markdown(f'<div class="aura-warn">Live peak banner: {live_error}</div>', unsafe_allow_html=True)
 
-metrics, metrics_error = api_client.get_metrics()
+metrics, metrics_error = api_client.get_metrics(zone=zone)
 if metrics_error:
     st.markdown(f'<div class="aura-warn">{metrics_error}</div>', unsafe_allow_html=True)
 elif metrics:
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(kpi_html("Active model", str(metrics.get("active_model", "—")), sub="Test-set · not date-filtered"), unsafe_allow_html=True)
+    c1.markdown(kpi_html("Active model", str(metrics.get("active_model", "—")), sub=f"Zone · {ZONE_LABELS[zone]}"), unsafe_allow_html=True)
     c2.markdown(kpi_html("RMSE", f"{metrics.get('rmse', 0):.2f}", "kW", "Hold-out test error"), unsafe_allow_html=True)
     c3.markdown(kpi_html("MAPE", f"{metrics.get('mape', 0):.2f}", "%", "Hold-out test error"), unsafe_allow_html=True)
     c4.markdown(kpi_html("MAE", f"{metrics.get('mae', 0):.2f}", "kW", "Hold-out test error"), unsafe_allow_html=True)
 
+chart_title = f"{ZONE_LABELS[zone]} · {ZONE_TARGETS[zone]} (kW) · simulated"
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Actual vs predicted demand</div>', unsafe_allow_html=True)
 st.markdown(
-    f'<div class="aura-sec-sub">Full Start→End history: {start_ts.isoformat()} → {end_ts.isoformat()}</div>',
+    f'<div class="aura-sec-sub">{chart_title} · {start_ts.isoformat()} → {end_ts.isoformat()}</div>',
     unsafe_allow_html=True,
 )
-forecasts, forecasts_error = api_client.get_forecasts(start_ts.isoformat(), end_ts.isoformat())
+forecasts, forecasts_error = api_client.get_forecasts(
+    start_ts.isoformat(), end_ts.isoformat(), zone=zone
+)
 if forecasts_error:
     st.markdown(f'<div class="aura-warn">{forecasts_error}</div>', unsafe_allow_html=True)
 elif forecasts:
@@ -102,7 +127,63 @@ elif forecasts:
     if not items:
         st.info("No data for the selected dates")
     else:
-        render_forecast_chart(items, show_model_lines=show_model_lines)
+        render_forecast_chart(items, show_model_lines=show_model_lines, title=chart_title)
+st.markdown("</div>", unsafe_allow_html=True)
+
+# --- REPLAY (simulated) ---
+st.markdown(
+    '<div class="aura-card"><div class="aura-sec-title">REPLAY (simulated)</div>',
+    unsafe_allow_html=True,
+)
+st.caption("Streams hold-out test intervals via /replay — not a live meter.")
+for k, v in (
+    ("replay_running", False),
+    ("replay_cursor", 0),
+    ("replay_items", []),
+    ("replay_peaks", 0),
+):
+    st.session_state.setdefault(k, v)
+
+r1, r2, r3, r4 = st.columns([1, 1, 1, 2])
+if r1.button("Start", key="replay_start"):
+    st.session_state.replay_running = True
+if r2.button("Pause", key="replay_pause"):
+    st.session_state.replay_running = False
+if r3.button("Reset", key="replay_reset_btn"):
+    api_client.replay_reset(zone=zone)
+    st.session_state.replay_running = False
+    st.session_state.replay_cursor = 0
+    st.session_state.replay_items = []
+    st.session_state.replay_peaks = 0
+speed = r4.select_slider(
+    "Speed (intervals / tick)", options=[1, 2, 4, 8, 16], value=4, key="replay_speed"
+)
+st.metric("Peak alerts raised (replay)", int(st.session_state.replay_peaks))
+
+if st.session_state.replay_running:
+    batch, err = api_client.replay_next(
+        cursor=int(st.session_state.replay_cursor), n=int(speed), zone=zone
+    )
+    if err:
+        st.warning(err)
+        st.session_state.replay_running = False
+    elif batch:
+        st.session_state.replay_items.extend(batch.get("items") or [])
+        st.session_state.replay_cursor = int(batch.get("next_cursor", st.session_state.replay_cursor))
+        st.session_state.replay_peaks += int(batch.get("peak_alerts") or 0)
+        if batch.get("done"):
+            st.session_state.replay_running = False
+            st.info("Replay finished test window.")
+        else:
+            time.sleep(0.35)
+            st.rerun()
+
+if st.session_state.replay_items:
+    render_forecast_chart(
+        st.session_state.replay_items,
+        show_model_lines=False,
+        title=f"REPLAY (simulated) · {ZONE_LABELS[zone]} · kW",
+    )
 st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown('<div class="aura-card"><div class="aura-sec-title">Demand forecast ahead</div>', unsafe_allow_html=True)
@@ -204,7 +285,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 peaks, peaks_error = api_client.get_peaks(
-    limit=int(peaks_limit), start=start_ts.isoformat(), end=end_ts.isoformat()
+    limit=int(peaks_limit),
+    start=start_ts.isoformat(),
+    end=end_ts.isoformat(),
+    zone=zone,
 )
 if peaks_error:
     st.markdown(f'<div class="aura-warn">{peaks_error}</div>', unsafe_allow_html=True)

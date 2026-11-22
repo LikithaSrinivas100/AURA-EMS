@@ -23,7 +23,13 @@ try:
         PredictRequest,
         PredictResponse,
     )
-    from app.services.forecaster import count_calendar_intervals, forecast_ahead, predict_one
+    from app.services.forecaster import (
+        count_calendar_intervals,
+        forecast_ahead,
+        parse_zone,
+        predict_one,
+        zone_history_items,
+    )
     from app.services.weather import today_peak
 except ImportError:
     from db import get_db
@@ -41,7 +47,13 @@ except ImportError:
         PredictRequest,
         PredictResponse,
     )
-    from services.forecaster import count_calendar_intervals, forecast_ahead, predict_one
+    from services.forecaster import (
+        count_calendar_intervals,
+        forecast_ahead,
+        parse_zone,
+        predict_one,
+        zone_history_items,
+    )
     from services.weather import today_peak
 
 router = APIRouter()
@@ -180,15 +192,61 @@ def post_predict(body: PredictRequest, zone: str = Query("total")):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _zone_or_422(zone: str) -> str:
+    try:
+        parse_zone(zone)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return (zone or "campus").strip().lower()
+
+
+def _peaks_from_items(raw: list[dict], limit: int) -> PeaksResponse:
+    if not raw:
+        return PeaksResponse(items=[])
+    vals = sorted((float(r["best_pred_kw"]) for r in raw), reverse=True)
+    total = len(vals)
+    p90 = vals[max(0, int(total * 0.10))]
+    p75 = vals[max(0, int(total * 0.25))]
+    hi_cut = max(HIGH_RISK_KW, p90)
+
+    def risk(v: float) -> str:
+        if v >= hi_cut:
+            return "HIGH"
+        if v >= p75:
+            return "MEDIUM"
+        return "LOW"
+
+    ranked = sorted(raw, key=lambda r: float(r["best_pred_kw"]), reverse=True)
+    hi = [r for r in ranked if float(r["best_pred_kw"]) >= hi_cut]
+    mid = [r for r in ranked if p75 <= float(r["best_pred_kw"]) < hi_cut]
+    lo = [r for r in ranked if float(r["best_pred_kw"]) < p75]
+    n_h = max(1, (limit + 1) // 2)
+    n_m = max(1, limit // 3)
+    n_l = max(0, limit - n_h - n_m)
+    picked = hi[:n_h] + mid[:n_m] + (lo[:n_l] if n_l else [])
+    picked.sort(key=lambda r: float(r["best_pred_kw"]), reverse=True)
+    return PeaksResponse(
+        items=[
+            PeakItem(ts=r["ts"], best_pred_kw=float(r["best_pred_kw"]), risk_level=risk(float(r["best_pred_kw"])))
+            for r in picked
+        ]
+    )
+
+
 @router.get("/forecasts/peaks", response_model=PeaksResponse)
 def get_peaks(
     limit: int = Query(10, ge=1, le=50),
     start: Optional[str] = Query(None),
     end: Optional[str] = Query(None),
+    zone: str = Query("campus"),
     db: Session = Depends(get_db),
 ):
     """Top peaks using rank thresholds (Render-safe; no full-series load)."""
+    z = _zone_or_422(zone)
     start_dt, end_dt = _parse_ts(start), _parse_ts(end)
+    if z != "campus":
+        return _peaks_from_items(zone_history_items(z, start=start_dt, end=end_dt), limit)
+
     base = db.query(Forecast).filter(Forecast.best_pred_kw.isnot(None))
     if start_dt:
         base = base.filter(Forecast.ts >= start_dt)
@@ -232,10 +290,20 @@ def get_peaks(
 def get_forecasts(
     start: Optional[str] = Query(None),
     end: Optional[str] = Query(None),
+    zone: str = Query("campus"),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Forecast)
+    z = _zone_or_422(zone)
     start_dt, end_dt = _parse_ts(start), _parse_ts(end)
+    if z != "campus":
+        raw = zone_history_items(z, start=start_dt, end=end_dt)
+        if not start_dt and not end_dt and raw:
+            cut = raw[-1]["ts"] - timedelta(hours=48)
+            raw = [r for r in raw if r["ts"] >= cut]
+        items = [ForecastItem(**r) for r in raw]
+        return ForecastsResponse(count=len(items), items=items)
+
+    query = db.query(Forecast)
     if start_dt and end_dt:
         query = query.filter(Forecast.ts >= start_dt, Forecast.ts <= end_dt)
     elif start_dt:
